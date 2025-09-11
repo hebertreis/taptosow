@@ -1,16 +1,21 @@
-const {setGlobalOptions} = require("firebase-functions");
-const {onRequest} = require("firebase-functions/https");
+const {onRequest} = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
-const functions = require("firebase-functions");
-
-// Set global options for cost control
-setGlobalOptions({ maxInstances: 10 });
+const {defineSecret} = require("firebase-functions/params");
 
 // CORS configuration for web requests
 const cors = require('cors')({ origin: true });
 
+// 🔐 SECURE: Define Stripe secret key using Firebase v2 Secret Manager
+const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
+
 // Create Payment Intent for Stripe
-exports.createPaymentIntent = onRequest({ cors: true }, async (req, res) => {
+exports.createPaymentIntent = onRequest(
+  { 
+    cors: true,
+    maxInstances: 10, // Set max instances for cost control
+    secrets: [stripeSecretKey] // Make secret available to this function
+  }, 
+  async (req, res) => {
   // Handle CORS preflight
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -27,18 +32,27 @@ exports.createPaymentIntent = onRequest({ cors: true }, async (req, res) => {
   }
 
   try {
-    // Initialize Stripe with secret key from config
-    const stripeSecretKey = functions.config().stripe?.secret_key;
+    // 🔐 SECURE: Get Stripe secret key from Firebase v2 Secret Manager
+    const secretKeyValue = stripeSecretKey.value();
     
-    if (!stripeSecretKey) {
-      logger.error('Stripe secret key not configured');
+    if (!secretKeyValue || secretKeyValue.length === 0) {
+      logger.error('Stripe secret key not configured in Secret Manager');
       res.status(500).json({ 
-        error: 'Stripe configuration missing. Please set the secret key using: firebase functions:config:set stripe.secret_key="sk_test_..."' 
+        success: false,
+        error: '🔑 Stripe Secret Key Missing',
+        instructions: [
+          '1. Configure securely: firebase functions:secrets:set STRIPE_SECRET_KEY',
+          '2. Enter your Stripe secret key when prompted (sk_test_...)',
+          '3. Deploy: firebase deploy --only functions',
+          '4. Your key is stored securely in Google Secret Manager! 🔐'
+        ],
+        security_note: 'Keys stored in Google Secret Manager - never in source code! 🔐',
+        migration_note: 'Updated to Firebase Functions v2 with enhanced security'
       });
       return;
     }
     
-    const stripe = require('stripe')(stripeSecretKey);
+    const stripe = require('stripe')(secretKeyValue);
     const { amount, currency = 'brl' } = req.body; // Default to BRL
     
     // Validate currency

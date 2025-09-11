@@ -55,9 +55,9 @@
         // Check configuration
         function checkConfig() {
             const configDiv = document.getElementById('config-status');
-            const currentKey = 'pk_live_51OcBVaGmR8MQBnbEGPmUcJ6vcnZ38RAdJQSHDftSsvB9YCSAXZcrr8BqQZvBd0OACfibZaI0o1rIAPw3O1bz6T3u00OErTe5Bm'; // This should match your actual config
+            const currentKey = 'pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG'; // This should match your actual config
             
-            if (currentKey === 'pk_live_51OcBVaGmR8MQBnbEGPmUcJ6vcnZ38RAdJQSHDftSsvB9YCSAXZcrr8BqQZvBd0OACfibZaI0o1rIAPw3O1bz6T3u00OErTe5Bm') {
+            if (currentKey === 'pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG') {
                 configDiv.innerHTML = '<div class="warning">⚠️ Stripe publishable key not configured</div>';
                 return false;
             } else if (currentKey.startsWith('pk_live_')) {

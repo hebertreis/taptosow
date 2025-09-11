@@ -1,2 +1,4 @@
 node_modules/
 *.local
+# Local secrets
+.secret.local

@@ -411,7 +411,16 @@
                 document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
                 this.classList.add('selected');
                 
-                updatePaymentRequest();
+                // Update payment request amount only
+                if (paymentRequest) {
+                    const amountCents = Math.round(parseFloat(amount) * 100);
+                    paymentRequest.update({
+                        total: {
+                            label: 'Bishop S.Y. Younger Donation',
+                            amount: amountCents,
+                        },
+                    });
+                }
             });
         });
         
@@ -436,6 +445,8 @@
             // Reset preset buttons
             document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('selected'));
             
+            // Properly destroy and recreate payment request for fresh start
+            destroyPaymentRequest();
             updatePaymentRequest();
             updatePresetButtons();
         }
@@ -443,7 +454,7 @@
         // Replace with your Stripe publishable key
         // IMPORTANT: Use TEST keys for development (pk_test_...)
         // NEVER use LIVE keys (pk_live_...) in development
-        const stripe = Stripe('pk_test_YOUR_PUBLISHABLE_KEY_HERE');
+        const stripe = Stripe('pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG');
         const elements = stripe.elements();
         
         // Create card element - NO STRIPE LINK
@@ -475,109 +486,165 @@
         // Create dynamic payment request
         let paymentRequest;
         let prButton;
+        let isPaymentRequestMounted = false;
+        
+        function destroyPaymentRequest() {
+            // Properly destroy existing payment request button
+            if (prButton) {
+                try {
+                    prButton.destroy();
+                } catch (e) {
+                    console.log('Button already destroyed or not mounted');
+                }
+                prButton = null;
+            }
+            
+            // Clear payment request
+            paymentRequest = null;
+            isPaymentRequestMounted = false;
+            
+            // Clear the wallet button container
+            const walletContainer = document.getElementById('wallet-button');
+            if (walletContainer) {
+                walletContainer.innerHTML = '';
+            }
+        }
         
         function updatePaymentRequest() {
             const currency = document.getElementById('currency').value;
             const amount = Math.round(parseFloat(document.getElementById('amount').value || 10) * 100);
             const currencyInfo = currencyData[currency];
             
-            paymentRequest = stripe.paymentRequest({
-                country: currencyInfo.country,
-                currency: currency,
-                total: {
-                    label: 'Bishop S.Y. Younger Donation',
-                    amount: amount,
-                },
-                requestPayerName: true,
-                requestPayerEmail: true,
-                disableWallets: ['link'], // Disable Stripe Link
-            });
-            
-            // Remove existing button if any
-            const walletContainer = document.getElementById('wallet-button');
-            walletContainer.innerHTML = '';
-            
-            prButton = elements.create('paymentRequestButton', {
-                paymentRequest,
-                style: {
-                    paymentRequestButton: {
-                        type: 'default', // Shows "Pay with Apple Pay" or "Pay with Google Pay"
-                        theme: 'dark',
-                        height: '50px',
+            // If we have an existing payment request, just update it (for amount changes only)
+            if (paymentRequest && prButton && isPaymentRequestMounted) {
+                paymentRequest.update({
+                    total: {
+                        label: 'Bishop S.Y. Younger Donation',
+                        amount: amount,
                     },
-                },
-            });
+                });
+                return;
+            }
             
-            // Check if digital wallets are available (Apple Pay, Google Pay only)
-            paymentRequest.canMakePayment().then(function(result) {
-                if (result && (result.applePay || result.googlePay)) {
-                    // Only mount if we have native wallet options (not Link)
-                    prButton.mount('#wallet-button');
-                    document.getElementById('wallet-button').style.display = 'block';
-                    document.querySelector('.divider').style.display = 'block';
-                } else {
-                    // Hide the wallet button section if no native wallets available
-                    document.getElementById('wallet-button').style.display = 'none';
-                    document.querySelector('.divider').style.display = 'none';
-                }
-            }).catch(function(error) {
-                console.log('Payment request not supported:', error);
-                document.getElementById('wallet-button').style.display = 'none';
-                document.querySelector('.divider').style.display = 'none';
-            });
+            // Create new payment request only if none exists
+            if (!paymentRequest) {
+                paymentRequest = stripe.paymentRequest({
+                    country: currencyInfo.country,
+                    currency: currency,
+                    total: {
+                        label: 'Bishop S.Y. Younger Donation',
+                        amount: amount,
+                    },
+                    requestPayerName: true,
+                    requestPayerEmail: true,
+                    disableWallets: ['link'], // Disable Stripe Link
+                });
+            }
             
-            // Handle digital wallet payment
-            paymentRequest.on('paymentmethod', async function(ev) {
-                const amount = parseFloat(document.getElementById('amount').value || 0);
-                const currency = document.getElementById('currency').value;
-                
-                try {
-                    const response = await fetch('/createPaymentIntent', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
+            // Only create button if not already created
+            if (!prButton) {
+                prButton = elements.create('paymentRequestButton', {
+                    paymentRequest,
+                    style: {
+                        paymentRequestButton: {
+                            type: 'default', // Shows "Pay with Apple Pay" or "Pay with Google Pay"
+                            theme: 'dark',
+                            height: '50px',
                         },
-                        body: JSON.stringify({ amount, currency }),
-                    });
+                    },
+                });
+                
+                // Handle digital wallet payment (only add listener once)
+                paymentRequest.on('paymentmethod', async function(ev) {
+                    const amount = parseFloat(document.getElementById('amount').value || 0);
+                    const currency = document.getElementById('currency').value;
                     
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-                        throw new Error(errorData.error || `Server error: ${response.status}`);
-                    }
-                    
-                    const data = await response.json();
-                    
-                    if (!data.clientSecret) {
-                        throw new Error('Invalid response from server');
-                    }
-                    
-                    const { error } = await stripe.confirmCardPayment(data.clientSecret, {
-                        payment_method: ev.paymentMethod.id
-                    });
-                    
-                    if (error) {
+                    try {
+                        const response = await fetch('/createPaymentIntent', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ amount, currency }),
+                        });
+                        
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+                            throw new Error(errorData.error || `Server error: ${response.status}`);
+                        }
+                        
+                        const data = await response.json();
+                        
+                        if (!data.clientSecret) {
+                            throw new Error('Invalid response from server');
+                        }
+                        
+                        const { error } = await stripe.confirmCardPayment(data.clientSecret, {
+                            payment_method: ev.paymentMethod.id
+                        });
+                        
+                        if (error) {
+                            ev.complete('fail');
+                            showMessage(`Payment failed: ${error.message}`, 'error');
+                        } else {
+                            ev.complete('success');
+                            // Show success modal instead of message
+                            setTimeout(() => {
+                                showSuccessModal(amount, currency);
+                            }, 500);
+                        }
+                    } catch (error) {
+                        console.error('Digital wallet payment error:', error);
                         ev.complete('fail');
                         showMessage(`Payment failed: ${error.message}`, 'error');
-                    } else {
-                        ev.complete('success');
-                        // Show success modal instead of message
-                        setTimeout(() => {
-                            showSuccessModal(amount, currency);
-                        }, 500);
                     }
-                } catch (error) {
-                    console.error('Digital wallet payment error:', error);
-                    ev.complete('fail');
-                    showMessage(`Payment failed: ${error.message}`, 'error');
-                }
-            });
+                });
+            }
+            
+            // Check if digital wallets are available (Apple Pay, Google Pay only)
+            if (!isPaymentRequestMounted) {
+                paymentRequest.canMakePayment().then(function(result) {
+                    if (result && (result.applePay || result.googlePay)) {
+                        // Only mount if we have native wallet options (not Link)
+                        prButton.mount('#wallet-button');
+                        isPaymentRequestMounted = true;
+                        document.getElementById('wallet-button').style.display = 'block';
+                        document.querySelector('.divider').style.display = 'block';
+                    } else {
+                        // Hide the wallet button section if no native wallets available
+                        document.getElementById('wallet-button').style.display = 'none';
+                        document.querySelector('.divider').style.display = 'none';
+                    }
+                }).catch(function(error) {
+                    console.log('Payment request not supported:', error);
+                    document.getElementById('wallet-button').style.display = 'none';
+                    document.querySelector('.divider').style.display = 'none';
+                });
+            }
         }
         
         // Add event listeners for amount and currency changes
-        document.getElementById('amount').addEventListener('input', updatePaymentRequest);
+        document.getElementById('amount').addEventListener('input', function() {
+            // Only update payment request amount, don't recreate
+            if (paymentRequest) {
+                const amount = Math.round(parseFloat(this.value || 0) * 100);
+                paymentRequest.update({
+                    total: {
+                        label: 'Bishop S.Y. Younger Donation',
+                        amount: amount,
+                    },
+                });
+            }
+        });
+        
         document.getElementById('currency').addEventListener('change', function() {
-            updatePaymentRequest();
+            // For currency changes, we need to recreate the payment request
+            // Properly destroy existing elements first
+            destroyPaymentRequest();
+            
+            // Update preset buttons and recreate payment request
             updatePresetButtons();
+            updatePaymentRequest();
         });
         
         // Handle card payment form submission
