@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@tsparticles/plugin-absorbers": "^3.9.1"
+  }
+}
