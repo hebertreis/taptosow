@@ -1,32 +1,83 @@
-/**
- * Import function triggers from their respective submodules:
- *
- * const {onCall} = require("firebase-functions/v2/https");
- * const {onDocumentWritten} = require("firebase-functions/v2/firestore");
- *
- * See a full list of supported triggers at https://firebase.google.com/docs/functions
- */
-
 const {setGlobalOptions} = require("firebase-functions");
 const {onRequest} = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
+const functions = require("firebase-functions");
 
-// For cost control, you can set the maximum number of containers that can be
-// running at the same time. This helps mitigate the impact of unexpected
-// traffic spikes by instead downgrading performance. This limit is a
-// per-function limit. You can override the limit for each function using the
-// `maxInstances` option in the function's options, e.g.
-// `onRequest({ maxInstances: 5 }, (req, res) => { ... })`.
-// NOTE: setGlobalOptions does not apply to functions using the v1 API. V1
-// functions should each use functions.runWith({ maxInstances: 10 }) instead.
-// In the v1 API, each function can only serve one request per container, so
-// this will be the maximum concurrent request count.
+// Set global options for cost control
 setGlobalOptions({ maxInstances: 10 });
 
-// Create and deploy your first functions
-// https://firebase.google.com/docs/functions/get-started
+// CORS configuration for web requests
+const cors = require('cors')({ origin: true });
 
-// exports.helloWorld = onRequest((request, response) => {
-//   logger.info("Hello logs!", {structuredData: true});
-//   response.send("Hello from Firebase!");
-// });
+// Create Payment Intent for Stripe
+exports.createPaymentIntent = onRequest({ cors: true }, async (req, res) => {
+  // Handle CORS preflight
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+  
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'POST') {
+    res.status(405).send('Method Not Allowed');
+    return;
+  }
+
+  try {
+    // Initialize Stripe with secret key from config
+    const stripeSecretKey = functions.config().stripe?.secret_key;
+    
+    if (!stripeSecretKey) {
+      logger.error('Stripe secret key not configured');
+      res.status(500).json({ 
+        error: 'Stripe configuration missing. Please set the secret key using: firebase functions:config:set stripe.secret_key="sk_test_..."' 
+      });
+      return;
+    }
+    
+    const stripe = require('stripe')(stripeSecretKey);
+    const { amount, currency = 'brl' } = req.body; // Default to BRL
+    
+    // Validate currency
+    const supportedCurrencies = ['brl', 'usd', 'eur', 'gbp', 'cad', 'aud', 'jpy'];
+    if (!supportedCurrencies.includes(currency.toLowerCase())) {
+      res.status(400).json({ error: 'Unsupported currency' });
+      return;
+    }
+    
+    if (!amount || amount <= 0) {
+      res.status(400).json({ error: 'Invalid amount' });
+      return;
+    }
+
+    // Create a PaymentIntent with Stripe
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100), // Convert to cents
+      currency: currency.toLowerCase(),
+      automatic_payment_methods: {
+        enabled: true,
+      },
+      metadata: {
+        source: 'Bishop S.Y. Younger International Donations',
+        currency: currency.toUpperCase()
+      }
+    });
+
+    logger.info('Payment Intent created:', { 
+      id: paymentIntent.id, 
+      amount, 
+      currency: currency.toUpperCase(),
+      source: 'Bishop S.Y. Younger International Donations'
+    });
+    
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+    });
+  } catch (error) {
+    logger.error('Error creating payment intent:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});

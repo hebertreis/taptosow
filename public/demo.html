@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demo - Preset Buttons & Success Modal</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f6f9fc;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 400px;
+            margin: 50px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .preset-amounts {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .preset-btn {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .preset-btn:hover {
+            background: #1976d2;
+            transform: translateY(-1px);
+        }
+        
+        .preset-btn.selected {
+            background: #1565c0;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+        }
+        
+        .demo-btn {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        /* Success Overlay Styles */
+        .success-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .success-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .success-modal {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            transform: scale(0.7);
+            transition: transform 0.3s ease;
+        }
+        
+        .success-overlay.show .success-modal {
+            transform: scale(1);
+        }
+        
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: #4caf50;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: white;
+            animation: successPulse 0.6s ease-out;
+        }
+        
+        @keyframes successPulse {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        .success-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2e7d32;
+            margin-bottom: 12px;
+        }
+        
+        .success-message {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        
+        .success-btn {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🙏 Bishop S.Y. Younger</h1>
+        <h3>Demo - Preset Amounts & Success Modal</h3>
+        
+        <div class="preset-amounts">
+            <button type="button" class="preset-btn" onclick="selectAmount(10, this)">R$10</button>
+            <button type="button" class="preset-btn" onclick="selectAmount(25, this)">R$25</button>
+            <button type="button" class="preset-btn" onclick="selectAmount(50, this)">R$50</button>
+            <button type="button" class="preset-btn" onclick="selectAmount(100, this)">R$100</button>
+        </div>
+        
+        <p>Selected Amount: <strong id="selected-amount">R$10</strong></p>
+        
+        <button class="demo-btn" onclick="showDemo()">Demo Success Modal</button>
+    </div>
+
+    <!-- Success Overlay Modal -->
+    <div id="success-overlay" class="success-overlay">
+        <div class="success-modal">
+            <div class="success-icon">✓</div>
+            <div class="success-title">Payment Successful!</div>
+            <div class="success-message" id="success-message">
+                Your donation of R$10 has been processed successfully. Thank you for your generous support of Bishop S.Y. Younger's ministry!
+            </div>
+            <button class="success-btn" onclick="closeDemo()">Make Another Donation</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedAmount = 10;
+        
+        function selectAmount(amount, button) {
+            // Remove selection from all buttons
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('selected'));
+            
+            // Add selection to clicked button
+            button.classList.add('selected');
+            
+            // Update selected amount
+            selectedAmount = amount;
+            document.getElementById('selected-amount').textContent = 'R$' + amount;
+        }
+        
+        function showDemo() {
+            const message = `Your donation of R$${selectedAmount} has been processed successfully. Thank you for your generous support of Bishop S.Y. Younger's ministry!`;
+            document.getElementById('success-message').textContent = message;
+            document.getElementById('success-overlay').classList.add('show');
+        }
+        
+        function closeDemo() {
+            document.getElementById('success-overlay').classList.remove('show');
+            
+            // Reset selection
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('selected'));
+            selectedAmount = 10;
+            document.getElementById('selected-amount').textContent = 'R$10';
+        }
+        
+        // Auto-select first button
+        document.querySelector('.preset-btn').classList.add('selected');
+    </script>
+</body>
+</html>
