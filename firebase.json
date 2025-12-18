@@ -25,6 +25,10 @@
         "function": "createPaymentIntent"
       },
       {
+        "source": "/a",
+        "function": "redirectAuto"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
