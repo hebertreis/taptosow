@@ -451,10 +451,11 @@
             updatePresetButtons();
         }
         
-        // Replace with your Stripe publishable key
+        // Publishable key: prefer runtime-provided `window.__STRIPE_PUBLIC_KEY__` (set by hosting or a small script)
+        // Fallback to test key for local/dev use.
         // IMPORTANT: Use TEST keys for development (pk_test_...)
-        // NEVER use LIVE keys (pk_live_...) in development
-        const stripe = Stripe('pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG');
+        // NEVER use LIVE keys (pk_live_...) in development unless intended.
+        const stripe = Stripe(window.__STRIPE_PUBLIC_KEY__ || 'pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG');
         const elements = stripe.elements();
         
         // Create card element - NO STRIPE LINK
