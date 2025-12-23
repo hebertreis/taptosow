@@ -300,8 +300,8 @@
                 <div class="form-group currency-group">
                     <label for="currency">Currency</label>
                     <select id="currency">
-                        <option value="brl">BRL (R$)</option>
                         <option value="usd">USD ($)</option>
+                        <option value="brl">BRL (R$)</option>
                         <option value="eur">EUR (€)</option>
                         <option value="gbp">GBP (£)</option>
                         <option value="cad">CAD (C$)</option>
@@ -377,7 +377,7 @@
                 return regionCurrencyMap[region] || 'brl'; // Default to BRL
             } catch (error) {
                 console.log('Currency detection failed, using BRL default');
-                return 'brl';
+                return 'usd';
             }
         }
         
@@ -440,7 +440,7 @@
             const form = document.getElementById('payment-form');
             form.reset();
             document.getElementById('amount').value = '10.00';
-            document.getElementById('currency').value = 'brl';
+            document.getElementById('currency').value = 'usd';
             
             // Reset preset buttons
             document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('selected'));

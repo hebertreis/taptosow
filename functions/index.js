@@ -57,7 +57,7 @@ exports.createPaymentIntent = onRequest(
     }
     
     const stripe = require('stripe')(secretKeyValue);
-      const { amount: rawAmount, currency = 'brl' } = req.body; // Default to BRL
+      const { amount: rawAmount, currency = 'usd' } = req.body; // Default to BRL
 
       // Log incoming request body for debugging discrepancies between UI and Stripe
       logger.info('createPaymentIntent request body:', req.body);
@@ -97,7 +97,7 @@ exports.createPaymentIntent = onRequest(
         enabled: true,
       },
       metadata: {
-        source: 'Bishop S.Y. Younger International Donations',
+        source: 'The Ramp Church DMV - OneTapGo Giving',
         currency: currency.toUpperCase()
       }
     });
@@ -107,7 +107,7 @@ exports.createPaymentIntent = onRequest(
       amountReceived: amount,
       amountInCents,
       currency: currency.toUpperCase(),
-      source: 'Bishop S.Y. Younger International Donations'
+      source: 'The Ramp Church DMV - OneTapGo Giving'
     });
     
     res.json({
