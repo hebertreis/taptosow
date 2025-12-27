@@ -29,6 +29,10 @@
         "function": "redirectAuto"
       },
       {
+        "source": "/rampchurchdmv",
+        "function": "redirectAuto"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
