@@ -12,6 +12,13 @@ admin.initializeApp();
 // 🔐 SECURE: Define Stripe secret key using Firebase v2 Secret Manager
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 
+// 🔐 SECURE: Define Cora secrets
+const coraCert = defineSecret("CORA_CERT");
+const coraKey = defineSecret("CORA_KEY");
+const coraClientId = defineSecret("CORA_CLIENT_ID");
+
+const CoraClient = require('./src/cora');
+
 // Create Payment Intent for Stripe
 exports.createPaymentIntent = onRequest(
   {
@@ -137,6 +144,135 @@ exports.createPaymentIntent = onRequest(
     } catch (error) {
       logger.error('Error creating payment intent:', error);
       res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+// Create PIX Charge via Cora
+exports.createCoraPixCharge = onRequest(
+  {
+    cors: true,
+    maxInstances: 10,
+    secrets: [coraCert, coraKey, coraClientId]
+  },
+  async (req, res) => {
+    // CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).send('Method Not Allowed');
+      return;
+    }
+
+    try {
+      console.log('Creating Cora PIX charge...');
+      const cert = coraCert.value();
+      const key = coraKey.value();
+      const clientId = coraClientId.value(); // Optional, will check if empty
+
+      if (!cert || !key) {
+        console.error('Cora certificates not configured');
+        res.status(500).json({ error: 'Server configuration error' });
+        return;
+      }
+
+      const cora = new CoraClient(cert, key, clientId, true);
+
+      const { amount, customer, serviceName, serviceDesc } = req.body;
+
+      // if (!amount || !customer || !customer.name || !customer.document) {
+      //   res.status(400).json({ error: 'Missing required fields (amount, customer.name, customer.document)' });
+      //   return;
+      // }
+
+      const invoice = await cora.createInvoice(amount, customer, serviceName, serviceDesc);
+
+      // Extract PIX info from Cora response
+      // Usually in response.payment_options.pix.code or similar
+      // Let's assume standard Cora V2 response structure or handle if it's missing
+      // Typically: { id, ..., payment_options: { pix: { code: "..." }, bank_slip: { ... } } }
+
+      // Safety check for PIX code
+      const pixCode = invoice.pix?.emv || invoice.payment_options?.pix?.code || invoice.pix_emv;
+
+      if (!pixCode) {
+        logger.warn('PIX code not found in Cora response', invoice);
+        // It might be that the invoice is created but PIX details are elsewhere? 
+        // Normally they are in payment_options.
+        // We return the whole invoice just in case relevant data is there.
+      }
+
+      res.json({
+        success: true,
+        invoiceId: invoice.id,
+        pixCode: pixCode,
+        fullResponse: invoice // For debugging/frontend flexibility
+      });
+
+    } catch (error) {
+      logger.error('Error creating Cora PIX charge:', error);
+      res.status(500).json({
+        error: 'Failed to create PIX charge',
+        details: error.message
+      });
+    }
+  });
+
+// Check PIX Charge status via Cora
+exports.checkCoraPixStatus = onRequest(
+  {
+    cors: true,
+    maxInstances: 10,
+    secrets: [coraCert, coraKey, coraClientId]
+  },
+  async (req, res) => {
+    // CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).send('Method Not Allowed');
+      return;
+    }
+
+    try {
+      const { invoiceId } = req.body;
+      if (!invoiceId) {
+        res.status(400).json({ error: 'Missing invoiceId' });
+        return;
+      }
+
+      const cert = coraCert.value();
+      const key = coraKey.value();
+      const clientId = coraClientId.value();
+
+      const cora = new CoraClient(cert, key, clientId, true);
+      const invoice = await cora.getInvoice(invoiceId);
+
+      res.json({
+        success: true,
+        status: invoice.status, // OPEN, PAID, CANCELLED, etc.
+        invoice: invoice
+      });
+
+    } catch (error) {
+      logger.error('Error checking Cora PIX status:', error);
+      res.status(500).json({
+        error: 'Failed to check status',
+        details: error.message
+      });
     }
   });
 
