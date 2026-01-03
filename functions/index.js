@@ -311,3 +311,48 @@ exports.redirectAuto = onRequest({ cors: true, maxInstances: 5 }, async (req, re
     return res.redirect(302, '/');
   }
 });
+
+// verifyApplePayDomain endpoint
+// Programmatically registers and verifies a domain for Apple Pay
+// Usage: POST { domain: "example.com", stripeAccountId: "acct_..." }
+exports.verifyApplePayDomain = onRequest(
+  {
+    cors: true,
+    maxInstances: 5,
+    secrets: [stripeSecretKey]
+  },
+  async (req, res) => {
+    // CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    try {
+      const { domain = "wasser-c430a.web.app", stripeAccountId = "acct_1SkWViGa44Ztl1iO" } = req.body;
+      const stripe = require('stripe')(stripeSecretKey.value());
+
+      logger.info(`🍎 Verifying Apple Pay domain: ${domain} for account: ${stripeAccountId}`);
+
+      const applePayDomain = await stripe.applePayDomains.create({
+        domain_name: domain
+      }, {
+        stripeAccount: stripeAccountId
+      });
+
+      logger.info('✅ Apple Pay domain verified successfully:', applePayDomain);
+      res.json({ success: true, data: applePayDomain });
+    } catch (error) {
+      logger.error('💥 Error verifying Apple Pay domain:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        details: 'Ensure the file is available at https://[domain]/.well-known/apple-developer-merchantid-domain-association'
+      });
+    }
+  }
+);
