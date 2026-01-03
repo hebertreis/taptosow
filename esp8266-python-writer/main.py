@@ -1,5 +1,5 @@
 from machine import Pin, I2C, SoftSPI, reset, freq, PWM
-import time, network, urequests, json, gc, ubinascii, usocket
+import time, network, urequests, json, gc, ubinascii, usocket, six
 
 # Overclock 160MHz
 freq(160000000)
@@ -25,6 +25,7 @@ is_online = False
 # Drivers
 from lib.ssd1306 import SSD1306_I2C
 from lib.mfrc522 import MFRC522
+import ndef
 
 # Initialize I2C once
 i2c = I2C(scl=Pin(SCL), sda=Pin(SDA), freq=400000)
@@ -121,21 +122,100 @@ def report_event(uid, success):
         urequests.post("{}/event".format(BASE_API), json=payload, timeout=3).close()
     except: pass
 
-def write_ndef_url(rfid_obj, uid, url):
+def read_ntag(rfid_obj):
     try:
-        prefix_code = 0x04 if url.startswith("https://") else 0x01
-        addr_str = url.split("://")[1] if "://" in url else url
-        payload = bytearray(addr_str, 'utf-8')
-        payload_len = len(payload) + 1
-        ndef = bytearray([0x03, payload_len + 4, 0xD1, 0x01, payload_len, 0x55, prefix_code]) + payload + bytearray([0xFE])
-        while len(ndef) % 16 != 0: ndef.append(0)
-        if rfid_obj.auth(0x60, 4, [0xFF]*6, uid) == rfid_obj.OK:
-            for i in range(len(ndef) // 16):
-                if rfid_obj.write(4 + i, list(ndef[i*16 : (i+1)*16])) != rfid_obj.OK: return False
-            rfid_obj.stop_crypto1()
-            return True
+        # NTAG215: Read command (0x30) reads 4 pages (16 bytes)
+        # Reading from page 4 (User Memory Start)
+        stat, data = rfid_obj.read(4)
+        return data if stat == rfid_obj.OK else None
+    except: return None
+
+def _url_ndef_abbrv(url):
+    abbrv_table = """http://www.
+    https://www.
+    http://
+    https://
+    tel:
+    mailto:
+    ftp://anonymous:anonymous@
+    ftp://ftp.
+    ftps://
+    sftp://
+    smb://
+    nfs://
+    ftp://
+    dav://
+    news:
+    telnet://
+    imap:
+    rtsp://
+    urn:
+    pop:
+    sip:
+    sips:
+    tftp:
+    btspp://
+    btl2cap://
+    btgoep://
+    tcpobex://
+    irdaobex://
+    file://
+    urn:epc:id:
+    urn:epc:tag:
+    urn:epc:pat:
+    urn:epc:raw:
+    urn:epc:
+    urn:nfc:""".split()
+
+    for i, abbr in enumerate(abbrv_table):
+        if url.startswith(abbr):
+            return six.int2byte(i + 1) + url[len(abbr):].encode('utf-8')
+
+    return six.int2byte(0) + url.encode('utf-8')
+
+def write_ndef_url(rfid_obj, uid, url):
+    print("[DEBUG] Starting Write Process for:", url)
+    try:
+        uri_payload = _url_ndef_abbrv(url)
+        uri_record = (ndef.TNF_WELL_KNOWN, ndef.RTD_URI, b'', uri_payload)
+        message = ndef.new_message(uri_record)
+        raw_ndef = message.to_buffer()
+
+        # Add TLV (Tag-Length-Value) for NDEF
+        # T = 0x03 (NDEF)
+        # L = len(raw_ndef)
+        # V = raw_ndef
+        # E = 0xFE (Terminator)
+        ndef_data = bytearray([0x03, len(raw_ndef)]) + raw_ndef + bytearray([0xFE])
+
+        # Pad to 4-byte page boundary
+        while len(ndef_data) % 4 != 0:
+            ndef_data.append(0x00)
+
+        print("[DEBUG] NDEF size: {} bytes ({} pages)".format(len(ndef_data), len(ndef_data)//4))
+
+        # Write pages starting at Page 4
+        page = 4
+        
+        # Wake up tag with initial READ before writing
+        time.sleep_ms(10)
+        stat_wake, _ = rfid_obj.read(4)
+        print("[DEBUG] Wake-up read stat:", stat_wake)
+        time.sleep_ms(20)
+        
+        for i in range(0, len(ndef_data), 4):
+            chunk = list(ndef_data[i:i+4])
+            if rfid_obj.write_page(page, chunk) != rfid_obj.OK:
+                print("[DEBUG] Failed to write page", page)
+                return False
+            page += 1
+            time.sleep_ms(10)
+
+        print("[DEBUG] Write Success")
+        return True
+    except Exception as e:
+        print("[DEBUG] Exception:", e)
         return False
-    except: return False
 
 # Boot
 try:
@@ -183,24 +263,44 @@ while True:
         (stat, uid) = rfid.anticoll()
         if stat == rfid.OK:
             uid_hex = "".join([f"{x:02x}" for x in uid]).upper()
-            update_oled("WRITING...", uid_hex, force=True)
-            success = False
-            if current_mode == "RECORDER":
-                target_url = "https://wasser-c430a.web.app/go/{}/{}".format(target_client, uid_hex)
-                success = write_ndef_url(rfid, uid, target_url)
-            else: success = True
+            print("[DEBUG] Tag Detected:", uid_hex)
             
-            if success:
-                tag_count += 1
-                beep(1200, 150)
+            # IMPORTANT: Select the tag to activate it for NTAG operations
+            if rfid.select_tag(list(uid)) == rfid.OK:
+                update_oled("WRITING...", uid_hex, force=True)
+                
+                # Send REQA after SELECT to fully activate tag
+                time.sleep_ms(5)
+                stat_reqa, _ = rfid.request(rfid.REQIDL)
+                print("[DEBUG] REQA after select: stat=", stat_reqa)
+                time.sleep_ms(10)
+                
+                success = False
+                
+                if current_mode == "RECORDER":
+                    target_url = "https://wasser-c430a.web.app/go/{}/{}".format(target_client, uid_hex)
+                    success = write_ndef_url(rfid, uid, target_url)
+                else: 
+                    # Read/Validator Mode
+                    data = read_ntag(rfid)
+                    success = (data is not None)
+                
+                if success:
+                    tag_count += 1
+                    beep(1200, 150)
+                else:
+                    print("[DEBUG] Operation Failed")
+                    beep(200, 400)
+                
+                report_event(uid_hex, success)
+                update_oled("RESULT", "SUCCESS" if success else "ERROR", uid_hex, force=True)
             else:
-                beep(200, 400)
+                print("[DEBUG] Failed to Select Tag")
             
-            report_event(uid_hex, success)
-            update_oled("RESULT", "SUCCESS" if success else "ERROR", uid_hex, force=True)
             time.sleep(1.5)
             update_oled("MODE: " + current_mode, target_client, "READY", force=True)
             rfid.init()
+            # rfid.init() is now handled by update_oled and in error paths
 
     time.sleep_ms(10)
     gc.collect()
