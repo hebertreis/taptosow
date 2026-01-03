@@ -23,7 +23,7 @@ const CoraClient = require('./src/cora');
 exports.createPaymentIntent = onRequest(
   {
     cors: true,
-    maxInstances: 10, // Set max instances for cost control
+    maxInstances: 3, // Set max instances for cost control
     secrets: [stripeSecretKey] // Make secret available to this function
   },
   async (req, res) => {
@@ -151,7 +151,7 @@ exports.createPaymentIntent = onRequest(
 exports.createCoraPixCharge = onRequest(
   {
     cors: true,
-    maxInstances: 10,
+    maxInstances: 3,
     secrets: [coraCert, coraKey, coraClientId]
   },
   async (req, res) => {
@@ -228,7 +228,7 @@ exports.createCoraPixCharge = onRequest(
 exports.checkCoraPixStatus = onRequest(
   {
     cors: true,
-    maxInstances: 10,
+    maxInstances: 3,
     secrets: [coraCert, coraKey, coraClientId]
   },
   async (req, res) => {
@@ -280,7 +280,7 @@ exports.checkCoraPixStatus = onRequest(
 // Reads fastest available config from Realtime Database at
 // /site_config/auto_redirect -> { url: string, type?: 301|302 }
 // If no URL found or DB takes longer than 5s to respond, redirect to fallback '/'
-exports.redirectAuto = onRequest({ cors: true, maxInstances: 5 }, async (req, res) => {
+exports.redirectAuto = onRequest({ cors: true, maxInstances: 3 }, async (req, res) => {
   // CORS preflight
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
@@ -318,7 +318,7 @@ exports.redirectAuto = onRequest({ cors: true, maxInstances: 5 }, async (req, re
 exports.verifyApplePayDomain = onRequest(
   {
     cors: true,
-    maxInstances: 5,
+    maxInstances: 3,
     secrets: [stripeSecretKey]
   },
   async (req, res) => {
@@ -356,3 +356,96 @@ exports.verifyApplePayDomain = onRequest(
     }
   }
 );
+
+// One-time Seed Function
+exports.iotSeed = onRequest({ cors: true, maxInstances: 1 }, async (req, res) => {
+  try {
+    const clients = [
+      { id: 'default', name: 'OneTapGo (Default)', base_url: 'https://onetapgo.site' },
+      { id: 'the-ramp', name: 'The Ramp Church', base_url: 'https://theramp.com.br' }
+    ];
+    for (const c of clients) {
+      await admin.firestore().collection('clients').doc(c.id).set({
+        name: c.name, base_url: c.base_url, created_at: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+    }
+    res.send("Seed OK! Clientes criados.");
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
+// IoT Unified Router (Sync, Event, Redirect)
+// Consolidating to single function to bypass CPU Quota limits
+exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" }, async (req, res) => {
+  const path = req.path;
+
+  try {
+    // 1. Handling Sync (?deviceId=...)
+    if (path.includes('/sync')) {
+      const { deviceId } = req.query;
+      if (!deviceId) return res.status(400).send("Missing deviceId");
+
+      const deviceRef = admin.firestore().collection('devices').doc(deviceId);
+      const doc = await deviceRef.get();
+      await deviceRef.set({ last_seen: admin.firestore.FieldValue.serverTimestamp(), status: 'online' }, { merge: true });
+
+      if (!doc.exists) {
+        const defaultConfig = { mode: "RECORDER", target_client_slug: "default" };
+        await deviceRef.set({ label: "Novo Dispositivo", config: defaultConfig }, { merge: true });
+        return res.json(defaultConfig);
+      }
+      return res.json(doc.data().config || {});
+    }
+
+    // 2. Handling Event (POST payload)
+    if (path.includes('/event')) {
+      const { device_id, uid, action, success, mode_executed } = req.body;
+      if (!device_id || !uid) return res.status(400).send("Missing payload");
+
+      const batch = admin.firestore().batch();
+      const deviceRef = admin.firestore().collection('devices').doc(device_id);
+
+      batch.set(deviceRef, {
+        live_feedback: {
+          last_uid: uid, last_result: success ? 'SUCCESS' : 'ERROR',
+          message: success ? `Tag ${uid} vinculada (${mode_executed})` : "Falha no processo",
+          timestamp: admin.firestore.FieldValue.serverTimestamp()
+        }
+      }, { merge: true });
+
+      if (success && mode_executed === 'RECORDER') {
+        const deviceDoc = await deviceRef.get();
+        const client_slug = deviceDoc.data()?.config?.target_client_slug || "default";
+        const tagRef = admin.firestore().collection('tags').doc(uid);
+        batch.set(tagRef, { uid, client_slug, provisioned_by: device_id, provisioned_at: admin.firestore.FieldValue.serverTimestamp(), status: 'active' }, { merge: true });
+      }
+      await batch.commit();
+      return res.json({ success: true });
+    }
+
+    // 3. Handling Redirect (/go/:slug/:uid)
+    if (path.startsWith('/go/')) {
+      const parts = path.split('/').filter(p => p && p !== 'go');
+      if (parts.length < 2) return res.redirect(302, '/');
+      const [slug, uid] = parts;
+
+      const tagDoc = await admin.firestore().collection('tags').doc(uid).get();
+      let target_url = '/';
+
+      if (tagDoc.exists) {
+        const tagData = tagDoc.data();
+        await tagDoc.ref.update({ scan_count: admin.firestore.FieldValue.increment(1) });
+        target_url = tagData.redirect_override || (await admin.firestore().collection('clients').doc(slug).get()).data()?.base_url || '/';
+      } else {
+        target_url = (await admin.firestore().collection('clients').doc(slug).get()).data()?.base_url || '/';
+      }
+      return res.redirect(302, target_url);
+    }
+
+    res.status(404).send("IoT Path Not Found");
+  } catch (error) {
+    logger.error("iotRouter error:", error);
+    res.status(500).send(error.message);
+  }
+});
