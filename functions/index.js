@@ -20,6 +20,93 @@ const coraClientId = defineSecret("CORA_CLIENT_ID");
 const CoraClient = require('./src/cora');
 const { seedTenants } = require('./src/seedTenants');
 
+// --- NEW LOGGING FUNCTION ---
+exports.logEvent = onRequest({ cors: true, maxInstances: 10 }, async (req, res) => {
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+
+    if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+    }
+
+    try {
+        const { eventType, data } = req.body;
+
+        if (!eventType || !data) {
+            logger.warn("logEvent: Missing eventType or data", { body: req.body });
+            return res.status(400).json({ success: false, error: "Missing eventType or data" });
+        }
+
+        const db = admin.firestore();
+        const now = admin.firestore.FieldValue.serverTimestamp();
+
+        // Enrich data with server-side information
+        const enrichedData = {
+            ...data,
+            serverTimestamp: now,
+            ipAddress: req.ip, // Automatically captured by Cloud Functions
+            userAgent: req.get('User-Agent'),
+        };
+
+        // 1. Log to a generic 'events' collection for auditing
+        const eventLogRef = await db.collection('events').add({
+            eventType,
+            ...enrichedData,
+        });
+        logger.info(`Event '${eventType}' logged with ID: ${eventLogRef.id}`, { data });
+
+
+        // 2. Handle specific event types for structured data
+        switch (eventType) {
+            case 'payment_intent_success':
+                await db.collection('payments').doc(data.stripePaymentIntentId).set({
+                    ...enrichedData,
+                    status: 'success'
+                }, { merge: true });
+                logger.info(`Payment record '${data.stripePaymentIntentId}' updated to success.`);
+                break;
+
+            case 'payment_intent_failure':
+                await db.collection('payments').doc(data.stripePaymentIntentId).set({
+                    ...enrichedData,
+                    status: 'failed'
+                }, { merge: true });
+                logger.warn(`Payment record '${data.stripePaymentIntentId}' updated to failed.`);
+                break;
+            
+            case 'payment_intent_initiated':
+                 await db.collection('payments').doc(data.stripePaymentIntentId).set({
+                    ...enrichedData,
+                    status: 'initiated'
+                }, { merge: true });
+                logger.info(`Payment record '${data.stripePaymentIntentId}' created.`);
+                break;
+
+            // Example for other events
+            case 'user_profile_update':
+                if (data.userId) {
+                    await db.collection('users').doc(data.userId).set(data, { merge: true });
+                    logger.info(`User profile '${data.userId}' updated.`);
+                }
+                break;
+
+            default:
+                logger.info(`No specific handler for eventType: ${eventType}. Logged to 'events' only.`);
+        }
+
+        return res.status(200).json({ success: true, eventId: eventLogRef.id });
+
+    } catch (error) {
+        logger.error("Error in logEvent function:", error);
+        return res.status(500).json({ success: false, error: "Internal Server Error" });
+    }
+});
+
+
 // Create Payment Intent for Stripe
 exports.createPaymentIntent = onRequest(
   {
