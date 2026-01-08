@@ -18,6 +18,7 @@ const coraKey = defineSecret("CORA_KEY");
 const coraClientId = defineSecret("CORA_CLIENT_ID");
 
 const CoraClient = require('./src/cora');
+const { seedTenants } = require('./src/seedTenants');
 
 // Create Payment Intent for Stripe
 exports.createPaymentIntent = onRequest(
@@ -447,5 +448,27 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
   } catch (error) {
     logger.error("iotRouter error:", error);
     res.status(500).send(error.message);
+  }
+});
+
+exports.seedTenantsFunction = onRequest({ cors: true, maxInstances: 1 }, async (req, res) => {
+  // Handle CORS preflight
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); // Allow GET for simple triggering
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  try {
+    // You might want to add authentication/authorization here in a production environment
+    // For now, it's a simple trigger.
+    await seedTenants();
+    res.status(200).send('Tenant seeding initiated successfully!');
+  } catch (error) {
+    logger.error('Error in seedTenantsFunction:', error);
+    res.status(500).send(`Error seeding tenants: ${error.message}`);
   }
 });

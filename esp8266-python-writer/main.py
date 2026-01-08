@@ -1,5 +1,5 @@
 from machine import Pin, I2C, SoftSPI, reset, freq, PWM
-import time, network, urequests, json, gc, ubinascii, usocket, six
+import time, network, urequests, json, gc, ubinascii, usocket, struct
 
 # Overclock 160MHz
 freq(160000000)
@@ -25,7 +25,7 @@ is_online = False
 # Drivers
 from lib.ssd1306 import SSD1306_I2C
 from lib.mfrc522 import MFRC522
-import ndef
+from lib.ndef.ndef import TNF_WELL_KNOWN, RTD_URI, new_message
 
 # Initialize I2C once
 i2c = I2C(scl=Pin(SCL), sda=Pin(SDA), freq=400000)
@@ -131,47 +131,19 @@ def read_ntag(rfid_obj):
     except: return None
 
 def _url_ndef_abbrv(url):
-    abbrv_table = """http://www.
-    https://www.
-    http://
-    https://
-    tel:
-    mailto:
-    ftp://anonymous:anonymous@
-    ftp://ftp.
-    ftps://
-    sftp://
-    smb://
-    nfs://
-    ftp://
-    dav://
-    news:
-    telnet://
-    imap:
-    rtsp://
-    urn:
-    pop:
-    sip:
-    sips:
-    tftp:
-    btspp://
-    btl2cap://
-    btgoep://
-    tcpobex://
-    irdaobex://
-    file://
-    urn:epc:id:
-    urn:epc:tag:
-    urn:epc:pat:
-    urn:epc:raw:
-    urn:epc:
-    urn:nfc:""".split()
-
+    abbrv_table = (
+        "http://www.", "https://www.", "http://", "https://", "tel:", "mailto:",
+        "ftp://anonymous:anonymous@", "ftp://ftp.", "ftps://", "sftp://", "smb://",
+        "nfs://", "ftp://", "dav://", "news:", "telnet://", "imap:", "rtsp://",
+        "urn:", "pop:", "sip:", "sips:", "tftp:", "btspp://", "btl2cap://",
+        "btgoep://", "tcpobex://", "irdaobex://", "file://", "urn:epc:id:",
+        "urn:epc:tag:", "urn:epc:pat:", "urn:epc:raw:", "urn:epc:", "urn:nfc:"
+    )
     for i, abbr in enumerate(abbrv_table):
         if url.startswith(abbr):
-            return six.int2byte(i + 1) + url[len(abbr):].encode('utf-8')
+            return struct.pack(">B", i + 1) + url[len(abbr):].encode('utf-8')
 
-    return six.int2byte(0) + url.encode('utf-8')
+    return struct.pack(">B", 0) + url.encode('utf-8')
 
 def write_ndef_url(rfid_obj, uid, url):
     print("[DEBUG] Starting Write Process for:", url)
