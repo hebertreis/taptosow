@@ -19,7 +19,7 @@ const HARDCODED_TENANTS = {
             primaryColor: '#2e296c', // Deep blue 
         },
         paymentMethods: {
-            primary: ['pix', 'apple_pay', 'google_pay'],
+            primary: [ 'apple_pay', 'google_pay'],
             secondary: ['card', 'link', 'amazon_pay', 'crypto']
         }
     },

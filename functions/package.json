@@ -6,7 +6,11 @@
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "build:test": "cp .env.test .env && echo 'Environment set to test' && npm run build",
+    "build:dmv": "cp .env.dmv .env && echo 'Environment set to dmv' && npm run build",
+    "build:bsyym": "cp .env.bsyym .env && echo 'Environment set to bsyym' && npm run build",
+    "build:cre8": "cp .env.cre8 .env && echo 'Environment set to cre8' && npm run build"
   },
   "engines": {
     "node": "22"

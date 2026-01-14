@@ -11,6 +11,10 @@ admin.initializeApp();
 
 // 🔐 SECURE: Define Stripe secret key using Firebase v2 Secret Manager
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
+const stripeSecretKeyDmv = defineSecret("STRIPE_SECRET_KEY_DMV");
+const stripeSecretKeyCre8 = defineSecret("STRIPE_SECRET_KEY_CRE8");
+const stripeSecretKeyBsyym = defineSecret("STRIPE_SECRET_KEY_BSYYM");
+
 
 // 🔐 SECURE: Define Cora secrets
 const coraCert = defineSecret("CORA_CERT");
@@ -112,10 +116,9 @@ exports.createPaymentIntent = onRequest(
   {
     cors: true,
     maxInstances: 3, // Set max instances for cost control
-    secrets: [stripeSecretKey] // Make secret available to this function
+    secrets: [stripeSecretKey,stripeSecretKeyDmv,stripeSecretKeyCre8,stripeSecretKeyBsyym] // Make secret available to this function
   },
   async (req, res) => {
-    console.log('Received createPaymentIntent request:', req);
     // Handle CORS preflight
     res.set('Access-Control-Allow-Origin', '*');
     res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -132,8 +135,29 @@ exports.createPaymentIntent = onRequest(
     }
 
     try {
-      // 🔐 SECURE: Get Stripe secret key from Firebase v2 Secret Manager
-      const secretKeyValue = stripeSecretKey.value();
+      //Lookup for the domain in request headers if needed for multi-tenant logic then select which stripeSecretKey to use
+      const domain = req.get('Origin') || req.get('Referer') || 'unknown';
+      logger.info('createPaymentIntent called from domain:', domain);
+
+      if(domain.includes('rcsp.com.br') || domain.includes('rcsp.onetapgo.site') || domain.includes('wasser-c430a.web.app') || domain.includes('cre8.onetapgo.site')) {
+        logger.info('Using CRE8 Connect Stripe configuration');
+        secretKeyValue = stripeSecretKeyCre8.value();
+      }else if(domain.includes('taptosow-staging.web.app') || domain.includes('dmv.onetapgo.site') || domain.includes('rampchurchdmv.onetapgo.site') || domain.includes('rampdmv.web.app')){
+        logger.info('Using DMV Stripe Account configuration');
+        secretKeyValue = stripeSecretKeyDmv.value();
+      }else if(domain.includes('bishopyounger.com', 'bsyym.onetapgo.site')){
+        logger.info('Using Bishopyounger Stripe configuration');
+        secretKeyValue = stripeSecretKeyBsyym.value();
+      }else if(domain.includes('onetapgo.site')){
+        logger.info('Using OneTapGo Default Stripe configuration for onetapgo.site');
+        secretKeyValue = stripeSecretKey.value();
+      } else {
+        logger.info('Using OneTapGo Default Stripe configuration');
+        secretKeyValue = stripeSecretKey.value(); 
+      }
+      
+          // 🔐 SECURE: Get Stripe secret key from Firebase v2 Secret Manager
+      //const secretKeyValue = stripeSecretKey.value();
 
       if (!secretKeyValue || secretKeyValue.length === 0) {
         logger.error('Stripe secret key not configured in Secret Manager');
@@ -153,7 +177,7 @@ exports.createPaymentIntent = onRequest(
       }
 
       const stripe = require('stripe')(secretKeyValue);
-      const { amount: rawAmount, currency = 'usd', metadata = {}, stripeAccountId } = req.body;
+      const { amount: rawAmount, currency = 'usd', metadata = {}, stripeAccountId, customer = {}, paymentMethodTypes = ['card','apple_pay','google_pay','link','amazon_pay','crypto'] } = req.body;
 
       // Log incoming request body for debugging discrepancies between UI and Stripe
       logger.info('createPaymentIntent request body:', req.body);
@@ -207,24 +231,34 @@ exports.createPaymentIntent = onRequest(
         currency: currency.toUpperCase(),
       };
 
-      const paymentIntent = await stripe.paymentIntents.create({
+      // Add customer specific data to metadata if provided
+      // if (customer.name) paymentIntentMetadata.customer_name = customer.name;
+      // if (customer.email) paymentIntentMetadata.customer_email = customer.email;
+
+      // // Handle CPF/CNPJ for BRL currency
+      // if (currency.toLowerCase() === 'brl' || customer.taxId) {
+      //   need to read and implement https://docs.stripe.com/api/tax_ids/customer_create
+      // }
+
+      // Add ZIP code if provided
+      // if (customer.zipCode) {
+      //   paymentIntentMetadata.postal_code = customer.zipCode;
+      // }
+
+      //payment_method_types: paymentMethodTypes
+
+      const paymentIntentOptions = {
         amount: amountInCents,
         currency: currency.toLowerCase(),
-        automatic_payment_methods: {
-          enabled: true,
-        },
-        metadata: paymentIntentMetadata
-      }, {
-        stripeAccount: accountId,
-      });
+        automatic_payment_methods: { enabled: true },
+        metadata: paymentIntentMetadata,
+        
+      };
 
-      logger.info('Payment Intent created:', {
-        id: paymentIntent.id,
-        amountReceived: amount,
-        amountInCents,
-        currency: currency.toUpperCase(),
-        source: 'The Ramp Church São Paulo - OneTapGo Giving'
-      });
+      logger.info('Payment Intent options prepared:', paymentIntentOptions);
+      const paymentIntent = await stripe.paymentIntents.create(paymentIntentOptions, { stripeAccount: accountId });
+
+      logger.info('Payment Intent created:', paymentIntentOptions, { paymentIntentId: paymentIntent.id },paymentIntent);
 
       res.json({
         clientSecret: paymentIntent.client_secret,
