@@ -12,9 +12,7 @@
       ]
     }
   ],
-  "hosting": [
-    {
-    "target": "wasser-c430a",
+  "hosting": {
     "public": "send-din-din/dist",
     "ignore": [
       "firebase.json",
@@ -35,8 +33,8 @@
         "function": "checkCoraPixStatus"
       },
       {
-        "source": "/a",
-        "function": "redirectAuto"
+        "source": "/a/**",
+        "function": "iotRouter"
       },
       {
         "source": "/api/seed",
@@ -59,98 +57,5 @@
         "destination": "/index.html"
       }
     ]
-  }, {
-    "target": "cre8onetapgo",
-    "public": "send-din-din/dist",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "/createPaymentIntent",
-        "function": "createPaymentIntent"
-      },
-      {
-        "source": "/createCoraPixCharge",
-        "function": "createCoraPixCharge"
-      },
-      {
-        "source": "/checkCoraPixStatus",
-        "function": "checkCoraPixStatus"
-      },
-      {
-        "source": "/a",
-        "function": "redirectAuto"
-      },
-      {
-        "source": "/api/seed",
-        "function": "iotSeed"
-      },
-      {
-        "source": "/api/device/sync",
-        "function": "iotRouter"
-      },
-      {
-        "source": "/api/device/event",
-        "function": "iotRouter"
-      },
-      {
-        "source": "/go/**",
-        "function": "iotRouter"
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  },
-{
-    "target": "rampdmv",
-    "public": "send-din-din/dist",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "/createPaymentIntent",
-        "function": "createPaymentIntent"
-      },
-      {
-        "source": "/createCoraPixCharge",
-        "function": "createCoraPixCharge"
-      },
-      {
-        "source": "/checkCoraPixStatus",
-        "function": "checkCoraPixStatus"
-      },
-      {
-        "source": "/a",
-        "function": "redirectAuto"
-      },
-      {
-        "source": "/api/seed",
-        "function": "iotSeed"
-      },
-      {
-        "source": "/api/device/sync",
-        "function": "iotRouter"
-      },
-      {
-        "source": "/api/device/event",
-        "function": "iotRouter"
-      },
-      {
-        "source": "/go/**",
-        "function": "iotRouter"
-      },
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
-    ]
-  }]
+  }
 }

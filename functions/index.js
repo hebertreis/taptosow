@@ -398,41 +398,6 @@ exports.checkCoraPixStatus = onRequest(
     }
   });
 
-// Redirect handler for /auto
-// Reads fastest available config from Realtime Database at
-// /site_config/auto_redirect -> { url: string, type?: 301|302 }
-// If no URL found or DB takes longer than 5s to respond, redirect to fallback '/'
-exports.redirectAuto = onRequest({ cors: true, maxInstances: 3 }, async (req, res) => {
-  // CORS preflight
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-
-  try {
-    const timeoutMs = 5000;
-    // Use Firestore for faster lookups (document: site_config/auto_redirect)
-    const dbPromise = admin.firestore().doc('site_config/auto_redirect').get().then(doc => doc.exists ? doc.data() : null);
-    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs));
-
-    // Wait for DB or timeout
-    const data = await Promise.race([dbPromise, timeoutPromise]);
-
-    if (data && data.url) {
-      const code = data.type === 301 || data.type === '301' ? 301 : 302;
-      return res.redirect(code, data.url);
-    }
-
-    // fallback if no config or DB too slow
-    return res.redirect(302, '/');
-  } catch (err) {
-    logger.error('Error in redirectAuto:', err);
-    return res.redirect(302, '/');
-  }
-});
 
 // verifyApplePayDomain endpoint
 // Programmatically registers and verifies a domain for Apple Pay
@@ -479,6 +444,85 @@ exports.verifyApplePayDomain = onRequest(
   }
 );
 
+// Get Stripe Public Key for Frontend
+exports.getStripePublicKey = onRequest(
+  {
+    cors: true,
+    maxInstances: 3,
+  },
+  async (req, res) => {
+    // CORS preflight
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.status(405).send('Method Not Allowed');
+      return;
+    }
+
+    try {
+      const db = admin.firestore();
+      const domain = req.get('Origin') || req.get('Referer') || '';
+      logger.info('getStripePublicKey called from domain:', domain);
+
+      let tenantSlug = 'default'; // Default tenant
+
+      // Determine tenant based on domain
+      // This logic should mirror the one in createPaymentIntent for consistency
+      if (domain.includes('rampchurchdmv.onetapgo.site') || domain.includes('rampdmv.web.app')) {
+        tenantSlug = 'rampchurchdmv';
+      } else if (domain.includes('cre8.onetapgo.site') || domain.includes('rcsp.onetapgo.site') || domain.includes('wasser-c430a.web.app')) {
+        tenantSlug = 'cre8onetapgo';
+      } else if (domain.includes('bsyym.onetapgo.site') || domain.includes('bishopyounger.com')) {
+        tenantSlug = 'bishopsyyoungerministries';
+      } else if (domain.includes('rampchurchsp.onetapgo.site') || domain.includes('rcsp.com.br')) {
+        tenantSlug = 'rampchurchsp';
+      } else if (domain.includes('syyounger.onetapgo.site')) {
+        tenantSlug = 'syyounger';
+      } else if (domain.includes('owci.onetapgo.site')) {
+        tenantSlug = 'onewaychurches';
+      } else if (domain.includes('onetapgo.site')) {
+        tenantSlug = 'default';
+      }
+
+      const tenantDoc = await db.collection('tenants').doc(tenantSlug).get();
+
+      if (!tenantDoc.exists) {
+        logger.warn(`Tenant config not found for slug: ${tenantSlug}. Falling back to default.`);
+        const defaultTenantDoc = await db.collection('tenants').doc('default').get();
+        if (defaultTenantDoc.exists && defaultTenantDoc.data().stripePublicKey) {
+            res.json({ publicKey: defaultTenantDoc.data().stripePublicKey });
+            return;
+        }
+        throw new Error('Default tenant or public key not found');
+      }
+
+      const tenantData = tenantDoc.data();
+      if (!tenantData.stripePublicKey) {
+        logger.warn(`stripePublicKey not found for tenant: ${tenantSlug}. Falling back to default.`);
+         const defaultTenantDoc = await db.collection('tenants').doc('default').get();
+        if (defaultTenantDoc.exists && defaultTenantDoc.data().stripePublicKey) {
+            res.json({ publicKey: defaultTenantDoc.data().stripePublicKey });
+            return;
+        }
+        throw new Error('Public key not found for tenant and default also missing');
+      }
+
+      res.json({ publicKey: tenantData.stripePublicKey });
+
+    } catch (error) {
+      logger.error('Error fetching Stripe Public Key:', error);
+      res.status(500).json({ error: 'Internal server error fetching public key' });
+    }
+  }
+);
+
 // One-time Seed Function
 exports.iotSeed = onRequest({ cors: true, maxInstances: 1 }, async (req, res) => {
   try {
@@ -500,76 +544,112 @@ exports.iotSeed = onRequest({ cors: true, maxInstances: 1 }, async (req, res) =>
 // IoT Unified Router (Sync, Event, Redirect)
 // Consolidating to single function to bypass CPU Quota limits
 exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" }, async (req, res) => {
-  const path = req.path;
+    const path = req.path;
+    const db = admin.firestore();
 
-  try {
-    // 1. Handling Sync (?deviceId=...)
-    if (path.includes('/sync')) {
-      const { deviceId } = req.query;
-      if (!deviceId) return res.status(400).send("Missing deviceId");
+    try {
+        // 1. Handling Sync (?deviceId=...)
+        if (path.includes('/sync')) {
+            const { deviceId } = req.query;
+            if (!deviceId) return res.status(400).send("Missing deviceId");
 
-      const deviceRef = admin.firestore().collection('devices').doc(deviceId);
-      const doc = await deviceRef.get();
-      await deviceRef.set({ last_seen: admin.firestore.FieldValue.serverTimestamp(), status: 'online' }, { merge: true });
+            const deviceRef = db.collection('devices').doc(deviceId);
+            const doc = await deviceRef.get();
+            await deviceRef.set({ last_seen: admin.firestore.FieldValue.serverTimestamp(), status: 'online' }, { merge: true });
 
-      if (!doc.exists) {
-        const defaultConfig = { mode: "RECORDER", target_client_slug: "default" };
-        await deviceRef.set({ label: "Novo Dispositivo", config: defaultConfig }, { merge: true });
-        return res.json(defaultConfig);
-      }
-      return res.json(doc.data().config || {});
-    }
-
-    // 2. Handling Event (POST payload)
-    if (path.includes('/event')) {
-      const { device_id, uid, action, success, mode_executed } = req.body;
-      if (!device_id || !uid) return res.status(400).send("Missing payload");
-
-      const batch = admin.firestore().batch();
-      const deviceRef = admin.firestore().collection('devices').doc(device_id);
-
-      batch.set(deviceRef, {
-        live_feedback: {
-          last_uid: uid, last_result: success ? 'SUCCESS' : 'ERROR',
-          message: success ? `Tag ${uid} vinculada (${mode_executed})` : "Falha no processo",
-          timestamp: admin.firestore.FieldValue.serverTimestamp()
+            if (!doc.exists) {
+                const defaultConfig = { mode: "RECORDER", target_client_slug: "default" };
+                await deviceRef.set({ label: "Novo Dispositivo", config: defaultConfig }, { merge: true });
+                return res.json(defaultConfig);
+            }
+            return res.json(doc.data().config || {});
         }
-      }, { merge: true });
 
-      if (success && mode_executed === 'RECORDER') {
-        const deviceDoc = await deviceRef.get();
-        const client_slug = deviceDoc.data()?.config?.target_client_slug || "default";
-        const tagRef = admin.firestore().collection('tags').doc(uid);
-        batch.set(tagRef, { uid, client_slug, provisioned_by: device_id, provisioned_at: admin.firestore.FieldValue.serverTimestamp(), status: 'active' }, { merge: true });
-      }
-      await batch.commit();
-      return res.json({ success: true });
+        // 2. Handling Event (POST payload)
+        if (path.includes('/event')) {
+            const { device_id, uid, action, success, mode_executed } = req.body;
+            if (!device_id || !uid) return res.status(400).send("Missing payload");
+
+            const batch = db.batch();
+            const deviceRef = db.collection('devices').doc(device_id);
+
+            batch.set(deviceRef, {
+                live_feedback: {
+                    last_uid: uid,
+                    last_result: success ? 'SUCCESS' : 'ERROR',
+                    message: success ? `Tag ${uid} vinculada (${mode_executed})` : "Falha no processo",
+                    timestamp: admin.firestore.FieldValue.serverTimestamp()
+                }
+            }, { merge: true });
+
+            if (success && mode_executed === 'RECORDER') {
+                const deviceDoc = await deviceRef.get();
+                const client_slug = deviceDoc.data()?.config?.target_client_slug || "default";
+                const tagRef = db.collection('tags').doc(uid);
+                batch.set(tagRef, { uid, client_slug, provisioned_by: device_id, provisioned_at: admin.firestore.FieldValue.serverTimestamp(), status: 'active' }, { merge: true });
+            }
+            await batch.commit();
+            return res.json({ success: true });
+        }
+
+        // 3. Handling Redirects for /a and /go
+        if (path.startsWith('/a')) {
+            const parts = path.split('/').filter(Boolean);
+            const id = parts[1];
+
+            if (id) {
+                // Handle /a/:id
+                const tagDoc = await db.collection('tags').doc(id).get();
+                if (tagDoc.exists) {
+                    const tagData = tagDoc.data();
+                    await tagDoc.ref.update({ scan_count: admin.firestore.FieldValue.increment(1) });
+                    const targetUrl = tagData.redirect_url || tagData.url;
+                    if (targetUrl) {
+                        return res.redirect(302, targetUrl);
+                    }
+                }
+                // If tag not found or has no URL, use fallback
+                const fallbackDoc = await db.doc('site_config/fallback').get();
+                const fallbackUrl = fallbackDoc.exists ? fallbackDoc.data().url : '/';
+                return res.redirect(302, fallbackUrl);
+
+            } else {
+                // Handle /a (same as old redirectAuto)
+                const doc = await db.doc('site_config/auto_redirect').get();
+                if (doc.exists && doc.data().url) {
+                    const { url, type } = doc.data();
+                    const code = type === 301 ? 301 : 302;
+                    return res.redirect(code, url);
+                }
+                return res.redirect(302, '/'); // Default fallback
+            }
+        }
+
+        if (path.startsWith('/go/')) {
+            const parts = path.split('/').filter(p => p && p !== 'go');
+            if (parts.length < 2) return res.redirect(302, '/');
+            const [slug, uid] = parts;
+
+            const tagDoc = await db.collection('tags').doc(uid).get();
+            let target_url = '/';
+
+            if (tagDoc.exists) {
+                const tagData = tagDoc.data();
+                await tagDoc.ref.update({ scan_count: admin.firestore.FieldValue.increment(1) });
+                const clientDoc = await db.collection('clients').doc(slug).get();
+                target_url = tagData.redirect_override || clientDoc.data()?.base_url || '/';
+            } else {
+                const clientDoc = await db.collection('clients').doc(slug).get();
+                target_url = clientDoc.data()?.base_url || '/';
+            }
+            return res.redirect(302, target_url);
+        }
+
+        res.status(404).send("IoT Path Not Found");
+    } catch (error) {
+        logger.error("iotRouter error:", error);
+        res.status(500).send(error.message);
     }
-
-    // 3. Handling Redirect (/go/:slug/:uid)
-    if (path.startsWith('/go/')) {
-      const parts = path.split('/').filter(p => p && p !== 'go');
-      if (parts.length < 2) return res.redirect(302, '/');
-      const [slug, uid] = parts;
-
-      const tagDoc = await admin.firestore().collection('tags').doc(uid).get();
-      let target_url = '/';
-
-      if (tagDoc.exists) {
-        const tagData = tagDoc.data();
-        await tagDoc.ref.update({ scan_count: admin.firestore.FieldValue.increment(1) });
-        target_url = tagData.redirect_override || (await admin.firestore().collection('clients').doc(slug).get()).data()?.base_url || '/';
-      } else {
-        target_url = (await admin.firestore().collection('clients').doc(slug).get()).data()?.base_url || '/';
-      }
-      return res.redirect(302, target_url);
-    }
-
-    res.status(404).send("IoT Path Not Found");
-  } catch (error) {
-    logger.error("iotRouter error:", error);
-    res.status(500).send(error.message);
-  }
 });
 
 exports.seedTenantsFunction = onRequest({ cors: true, maxInstances: 1 }, async (req, res) => {

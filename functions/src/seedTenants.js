@@ -2,13 +2,33 @@ const admin = require('firebase-admin');
 
 // Hardcoded configs for immediate support while DB is empty
 const HARDCODED_TENANTS = {
+    'default': { // Default tenant for onetapgo.site
+        id: 'default',
+        slug: 'default',
+        domain: 'onetapgo.site',
+        name: 'OneTapGo (Default)',
+        currency: 'usd',
+        stripeAccountId: 'acct_XXXXXXXXXXXXXXXX', // Add actual default Stripe Connect ID
+        stripePublicKey: 'pk_live_51OcBVaGmR8MQBnbEGPmUcJ6vcnZ38RAdJQSHDftSsvB9YCSAXZcrr8BqQZvBd0OACfibZaI0o1rIAPw3O1bz6T3u00OErTe5Bm', // Placeholder, provide actual default PK
+        givingOptions: [
+            { id: 'offering', label: 'Offering', value: 'offering' },
+        ],
+        theme: {
+            primaryColor: '#000000',
+        },
+        paymentMethods: {
+            primary: ['card', 'apple_pay', 'google_pay'],
+            secondary: ['link', 'amazon_pay', 'crypto']
+        }
+    },
     'rampchurchdmv': {
         id: 'rampchurchdmv',
         slug: 'rampchurchdmv',
         domain: 'rampchurchdmv.onetapgo.site',
         name: 'The Ramp Church DMV',
         currency: 'usd',
-        stripeAccountId: 'acct_1Sgv31FBlE52ezvr', // Add Stripe Connect ID here later
+        stripeAccountId: 'acct_1Sgv31FBlE52ezvr',
+        stripePublicKey: 'pk_live_51Sgv31FBlE52ezvrVscSh9XuytEKe8m5nzt1CgzZikYfzpNrpkCIHx5zqlgKuktpBUNNThtyvgEXL8Zf4RHMD5TL00zRx9cdH0',
         givingOptions: [
             { id: 'offering', label: 'Offering', value: 'offering' },
             { id: 'tithe', label: 'Tithe', value: 'tithe' },
@@ -30,6 +50,7 @@ const HARDCODED_TENANTS = {
         name: 'Bishop S. Y. Younger',
         currency: 'usd',
         stripeAccountId: '', // Add Stripe Connect ID here later
+        stripePublicKey: 'pk_live_51MUGkkC4EUAkUAjWloSqbh284V6146VsSbRa1Lqch5yOphpbJRlFJwmu6bJVl2r7yopImSIpkBEz9EFTXkZV8DUN00gXojkSmZ', // Placeholder
         givingOptions: [
             { id: 'love_offering', label: 'Love Offering', value: 'love_offering' },
             { id: 'speaking', label: 'Speaking Engagement', value: 'speaking' },
@@ -50,6 +71,7 @@ const HARDCODED_TENANTS = {
         name: 'Bishop S.Y. Younger Ministries',
         currency: 'usd',
         stripeAccountId: '', // Add Stripe Connect ID here later
+        stripePublicKey: 'pk_live_51MUGkkC4EUAkUAjWloSqbh284V6146VsSbRa1Lqch5yOphpbJRlFJwmu6bJVl2r7yopImSIpkBEz9EFTXkZV8DUN00gXojkSmZ',
         givingOptions: [
             { id: 'love_offering', label: 'Love Offering', value: 'love_offering' },
             { id: 'merch', label: 'Merch', value: 'merch' },
@@ -64,6 +86,25 @@ const HARDCODED_TENANTS = {
             secondary: ['card', 'link', 'amazon_pay', 'crypto']
         }
     },
+    'cre8onetapgo': { // New tenant for cre8.onetapgo.site
+        id: 'cre8onetapgo',
+        slug: 'cre8onetapgo',
+        domain: 'cre8.onetapgo.site',
+        name: 'Cre8 OneTapGo',
+        currency: 'usd',
+        stripeAccountId: 'acct_XXXXXXXXXXXXXXXX', // Add actual Stripe Connect ID for Cre8
+        stripePublicKey: 'pk_live_51OcBVaGmR8MQBnbEGPmUcJ6vcnZ38RAdJQSHDftSsvB9YCSAXZcrr8BqQZvBd0OACfibZaI0o1rIAPw3O1bz6T3u00OErTe5Bm',
+        givingOptions: [
+            { id: 'offering', label: 'Offering', value: 'offering' },
+        ],
+        theme: {
+            primaryColor: '#FF00FF', // Example color
+        },
+        paymentMethods: {
+            primary: ['card', 'apple_pay', 'google_pay'],
+            secondary: ['link', 'amazon_pay', 'crypto']
+        }
+    },
     'onewaychurches': {
         id: 'onewaychurches',
         slug: 'owci',
@@ -71,6 +112,7 @@ const HARDCODED_TENANTS = {
         name: 'One Way Churches International',
         currency: 'usd',
         stripeAccountId: '', // Add Stripe Connect ID here later
+        stripePublicKey: 'pk_live_51OcBVaGmR8MQBnbEGPmUcJ6vcnZ38RAdJQSHDftSsvB9YCSAXZcrr8BqQZvBd0OACfibZaI0o1rIAPw3O1bz6T3u00OErTe5Bm', // Placeholder
         givingOptions: [
              { id: 'tithe', label: 'Tithe', value: 'tithe' },
             { id: 'offering', label: 'Offering', value: 'offering' },
@@ -93,6 +135,7 @@ const HARDCODED_TENANTS = {
         name: 'The Ramp Church São Paulo',
         currency: 'brl',
         stripeAccountId: 'acct_1SkWViGa44Ztl1iO', // Add Stripe Connect ID here later
+        stripePublicKey: 'pk_live_51OcBVaGmR8MQBnbEGPmUcJ6vcnZ38RAdJQSHDftSsvB9YCSAXZcrr8BqQZvBd0OACfibZaI0o1rIAPw3O1bz6T3u00OErTe5Bm', // Placeholder for BRL PK
         givingOptions: [
             { id: 'offering', label: 'Oferta', value: 'offering', pixRegistrationRequired: false },
             { id: 'tithe', label: 'Dízimo', value: 'tithe', pixRegistrationRequired: true },
