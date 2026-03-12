@@ -1,4 +1,9 @@
 {
+  "name": "taptosow",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "mkdir -p send-din-din/dist && cp public/index.html send-din-din/dist/"
+  },
   "dependencies": {
     "@tsparticles/plugin-absorbers": "^3.9.1",
     "firebase-functions": "^7.0.2"
