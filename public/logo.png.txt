@@ -1,0 +1,5 @@
+<!-- This is a placeholder for logo.png -->
+<!-- Please replace this file with your actual PNG logo for Bishop S.Y. Younger -->
+<!-- The logo should be approximately 120px wide for best display -->
+
+<!-- For now, you can place your logo.png file in the /public directory -->
