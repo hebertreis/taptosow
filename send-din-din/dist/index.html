@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bishop S.Y. Younger - International Payments</title>
+
+    <!-- Stripe.js -->
+    <script src="https://js.stripe.com/v3/"></script>
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f6f9fc;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 50px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .logo img {
+            max-width: 120px;
+            height: auto;
+            border-radius: 8px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #32325d;
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #6b7c93;
+            font-weight: 500;
+        }
+
+        input[type="number"], select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #cfd7df;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        .amount-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .amount-row .form-group {
+            flex: 1;
+        }
+
+        .amount-row .currency-group {
+            flex: 0 0 100px;
+        }
+
+        .preset-amounts {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .preset-btn {
+            background: #2196f3;
+            color: white;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .preset-btn:hover {
+            background: #1976d2;
+            transform: translateY(-1px);
+        }
+
+        .preset-btn.selected {
+            background: #1565c0;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.3);
+        }
+
+        #card-element {
+            padding: 12px;
+            border: 1px solid #cfd7df;
+            border-radius: 4px;
+            background: white;
+        }
+
+        #payment-button {
+            width: 100%;
+            background: #5469d4;
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.2s;
+        }
+
+        #payment-button:hover {
+            background: #4f63d2;
+        }
+
+        #payment-button:disabled {
+            background: #aab7c4;
+            cursor: not-allowed;
+        }
+
+        #wallet-button {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .error {
+            color: #e25950;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .success {
+            color: #28a745;
+            font-size: 14px;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .divider {
+            text-align: center;
+            margin: 20px 0;
+            color: #6b7c93;
+            position: relative;
+        }
+
+        .divider::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #e6ebf1;
+        }
+
+        .divider span {
+            background: white;
+            padding: 0 15px;
+        }
+
+        /* Success Overlay Styles */
+        .success-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .success-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .success-modal {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            transform: scale(0.7);
+            transition: transform 0.3s ease;
+        }
+
+        .success-overlay.show .success-modal {
+            transform: scale(1);
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: #4caf50;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            color: white;
+            animation: successPulse 0.6s ease-out;
+        }
+
+        @keyframes successPulse {
+            0% { transform: scale(0); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+
+        .success-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2e7d32;
+            margin-bottom: 12px;
+        }
+
+        .success-message {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+
+        .success-btn {
+            background: #4caf50;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .success-btn:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <img src="logo.png" alt="Bishop S.Y. Younger" onerror="this.style.display='none'">
+        </div>
+        <h1>🙏 Bishop S.Y. Younger</h1>
+        <p style="text-align: center; color: #6b7c93; margin-bottom: 30px;">International Donations & Payments</p>
+
+        <form id="payment-form">
+            <div class="preset-amounts">
+                <button type="button" class="preset-btn" data-amount="10">10</button>
+                <button type="button" class="preset-btn" data-amount="25">25</button>
+                <button type="button" class="preset-btn" data-amount="50">50</button>
+                <button type="button" class="preset-btn" data-amount="100">100</button>
+            </div>
+
+            <div class="amount-row">
+                <div class="form-group">
+                    <label for="amount">Amount</label>
+                    <input type="number" id="amount" placeholder="10.00" step="0.01" min="0.50" value="10.00" required>
+                </div>
+                <div class="form-group currency-group">
+                    <label for="currency">Currency</label>
+                    <select id="currency">
+                        <option value="usd">USD ($)</option>
+                        <option value="brl">BRL (R$)</option>
+                        <option value="eur">EUR (€)</option>
+                        <option value="gbp">GBP (£)</option>
+                        <option value="cad">CAD (C$)</option>
+                        <option value="aud">AUD (A$)</option>
+                        <option value="jpy">JPY (¥)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Digital Wallet Button -->
+            <div id="wallet-button"></div>
+
+            <div class="divider">
+                <span>or enter card details</span>
+            </div>
+
+            <!-- Card Element -->
+            <div class="form-group">
+                <label for="card-element">Card Information</label>
+                <div id="card-element"></div>
+                <div id="card-error" class="error"></div>
+            </div>
+
+            <button type="submit" id="payment-button">
+                <span id="button-text">Pay Now</span>
+                <span id="button-spinner" class="loading" style="display: none;"></span>
+            </button>
+
+            <div id="payment-result"></div>
+        </form>
+    </div>
+
+    <!-- Success Overlay Modal -->
+    <div id="success-overlay" class="success-overlay">
+        <div class="success-modal">
+            <div class="success-icon">
+                ✓
+            </div>
+            <div class="success-title">Payment Successful!</div>
+            <div class="success-message" id="success-message">
+                Thank you for your generous donation to Bishop S.Y. Younger.
+            </div>
+            <button class="success-btn" onclick="closeSuccessModal()">Make Another Donation</button>
+        </div>
+    </div>
+
+    <script>
+        // Currency and country detection
+        const currencyData = {
+            'brl': { country: 'BR', symbol: 'R$', name: 'Brazilian Real' },
+            'usd': { country: 'US', symbol: '$', name: 'US Dollar' },
+            'eur': { country: 'DE', symbol: '€', name: 'Euro' },
+            'gbp': { country: 'GB', symbol: '£', name: 'British Pound' },
+            'cad': { country: 'CA', symbol: 'C$', name: 'Canadian Dollar' },
+            'aud': { country: 'AU', symbol: 'A$', name: 'Australian Dollar' },
+            'jpy': { country: 'JP', symbol: '¥', name: 'Japanese Yen' }
+        };
+
+        // Detect user's currency based on location
+        async function detectUserCurrency() {
+            try {
+                // Try to detect based on browser locale
+                const locale = navigator.language || navigator.userLanguage;
+                const region = locale.split('-')[1];
+
+                const regionCurrencyMap = {
+                    'BR': 'brl', 'US': 'usd', 'CA': 'cad', 'AU': 'aud', 'JP': 'jpy',
+                    'GB': 'gbp', 'DE': 'eur', 'FR': 'eur', 'IT': 'eur', 'ES': 'eur',
+                    'NL': 'eur', 'AT': 'eur', 'BE': 'eur', 'FI': 'eur', 'IE': 'eur',
+                    'PT': 'eur', 'GR': 'eur', 'LU': 'eur'
+                };
+
+                return regionCurrencyMap[region] || 'brl'; // Default to BRL
+            } catch (error) {
+                console.log('Currency detection failed, using BRL default');
+                return 'usd';
+            }
+        }
+
+        // Initialize currency detection
+        detectUserCurrency().then(currency => {
+            document.getElementById('currency').value = currency;
+            updatePaymentRequest();
+            updatePresetButtons(); // Update preset button labels
+        });
+
+        // Handle preset amount buttons
+        function updatePresetButtons() {
+            const currency = document.getElementById('currency').value;
+            const currencyInfo = currencyData[currency];
+            const presetBtns = document.querySelectorAll('.preset-btn');
+
+            presetBtns.forEach(btn => {
+                const amount = btn.dataset.amount;
+                btn.textContent = `${currencyInfo.symbol}${amount}`;
+                btn.classList.remove('selected');
+            });
+        }
+
+        // Add event listeners for preset buttons
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const amount = this.dataset.amount;
+                document.getElementById('amount').value = amount;
+
+                // Update button selection
+                document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+
+                // Update payment request amount only
+                if (paymentRequest) {
+                    const amountCents = Math.round(parseFloat(amount) * 100);
+                    paymentRequest.update({
+                        total: {
+                            label: 'Bishop S.Y. Younger Donation',
+                            amount: amountCents,
+                        },
+                    });
+                }
+            });
+        });
+
+        // Success modal functions
+        function showSuccessModal(amount, currency) {
+            const currencyInfo = currencyData[currency];
+            const message = `Your donation of ${currencyInfo.symbol}${amount} has been processed successfully. Thank you for your generous support of Bishop S.Y. Younger's ministry!`;
+
+            document.getElementById('success-message').textContent = message;
+            document.getElementById('success-overlay').classList.add('show');
+        }
+
+        function closeSuccessModal() {
+            document.getElementById('success-overlay').classList.remove('show');
+
+            // Reset form
+            const form = document.getElementById('payment-form');
+            form.reset();
+            document.getElementById('amount').value = '10.00';
+            document.getElementById('currency').value = 'usd';
+
+            // Reset preset buttons
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('selected'));
+
+            // Properly destroy and recreate payment request for fresh start
+            destroyPaymentRequest();
+            updatePaymentRequest();
+            updatePresetButtons();
+        }
+
+        // Publishable key: prefer runtime-provided `window.__STRIPE_PUBLIC_KEY__` (set by hosting or a small script)
+        // Fallback to test key for local/dev use.
+        // IMPORTANT: Use TEST keys for development (pk_test_...)
+        // NEVER use LIVE keys (pk_live_...) in development unless intended.
+        const stripe = Stripe(window.__STRIPE_PUBLIC_KEY__ || 'pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG');
+        const elements = stripe.elements();
+
+        // Create card element - NO STRIPE LINK
+        const cardElement = elements.create('card', {
+            style: {
+                base: {
+                    fontSize: '16px',
+                    color: '#424770',
+                    '::placeholder': {
+                        color: '#aab7c4',
+                    },
+                },
+            },
+            hidePostalCode: true, // Optional: hide postal code
+            disableLink: true, // Disable Stripe Link
+        });
+        cardElement.mount('#card-element');
+
+        // Handle card errors
+        cardElement.on('change', ({error}) => {
+            const displayError = document.getElementById('card-error');
+            if (error) {
+                displayError.textContent = error.message;
+            } else {
+                displayError.textContent = '';
+            }
+        });
+
+        // Create dynamic payment request
+        let paymentRequest;
+        let prButton;
+        let isPaymentRequestMounted = false;
+
+        function destroyPaymentRequest() {
+            // Properly destroy existing payment request button
+            if (prButton) {
+                try {
+                    prButton.destroy();
+                } catch (e) {
+                    console.log('Button already destroyed or not mounted');
+                }
+                prButton = null;
+            }
+
+            // Clear payment request
+            paymentRequest = null;
+            isPaymentRequestMounted = false;
+
+            // Clear the wallet button container
+            const walletContainer = document.getElementById('wallet-button');
+            if (walletContainer) {
+                walletContainer.innerHTML = '';
+            }
+        }
+
+        function updatePaymentRequest() {
+            const currency = document.getElementById('currency').value;
+            const amount = Math.round(parseFloat(document.getElementById('amount').value || 10) * 100);
+            const currencyInfo = currencyData[currency];
+
+            // If we have an existing payment request, just update it (for amount changes only)
+            if (paymentRequest && prButton && isPaymentRequestMounted) {
+                paymentRequest.update({
+                    total: {
+                        label: 'Bishop S.Y. Younger Donation',
+                        amount: amount,
+                    },
+                });
+                return;
+            }
+
+            // Create new payment request only if none exists
+            if (!paymentRequest) {
+                paymentRequest = stripe.paymentRequest({
+                    country: currencyInfo.country,
+                    currency: currency,
+                    total: {
+                        label: 'Bishop S.Y. Younger Donation',
+                        amount: amount,
+                    },
+                    requestPayerName: true,
+                    requestPayerEmail: true,
+                    disableWallets: ['link'], // Disable Stripe Link
+                });
+            }
+
+            // Only create button if not already created
+            if (!prButton) {
+                prButton = elements.create('paymentRequestButton', {
+                    paymentRequest,
+                    style: {
+                        paymentRequestButton: {
+                            type: 'default', // Shows "Pay with Apple Pay" or "Pay with Google Pay"
+                            theme: 'dark',
+                            height: '50px',
+                        },
+                    },
+                });
+
+                // Handle digital wallet payment (only add listener once)
+                paymentRequest.on('paymentmethod', async function(ev) {
+                    const amount = parseFloat(document.getElementById('amount').value || 0);
+                    const currency = document.getElementById('currency').value;
+
+                    try {
+                        const response = await fetch('/createPaymentIntent', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ amount, currency }),
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+                            throw new Error(errorData.error || `Server error: ${response.status}`);
+                        }
+
+                        const data = await response.json();
+
+                        if (!data.clientSecret) {
+                            throw new Error('Invalid response from server');
+                        }
+
+                        const { error } = await stripe.confirmCardPayment(data.clientSecret, {
+                            payment_method: ev.paymentMethod.id
+                        });
+
+                        if (error) {
+                            ev.complete('fail');
+                            showMessage(`Payment failed: ${error.message}`, 'error');
+                        } else {
+                            ev.complete('success');
+                            // Show success modal instead of message
+                            setTimeout(() => {
+                                showSuccessModal(amount, currency);
+                            }, 500);
+                        }
+                    } catch (error) {
+                        console.error('Digital wallet payment error:', error);
+                        ev.complete('fail');
+                        showMessage(`Payment failed: ${error.message}`, 'error');
+                    }
+                });
+            }
+
+            // Check if digital wallets are available (Apple Pay, Google Pay only)
+            if (!isPaymentRequestMounted) {
+                paymentRequest.canMakePayment().then(function(result) {
+                    if (result && (result.applePay || result.googlePay)) {
+                        // Only mount if we have native wallet options (not Link)
+                        prButton.mount('#wallet-button');
+                        isPaymentRequestMounted = true;
+                        document.getElementById('wallet-button').style.display = 'block';
+                        document.querySelector('.divider').style.display = 'block';
+                    } else {
+                        // Hide the wallet button section if no native wallets available
+                        document.getElementById('wallet-button').style.display = 'none';
+                        document.querySelector('.divider').style.display = 'none';
+                    }
+                }).catch(function(error) {
+                    console.log('Payment request not supported:', error);
+                    document.getElementById('wallet-button').style.display = 'none';
+                    document.querySelector('.divider').style.display = 'none';
+                });
+            }
+        }
+
+        // Add event listeners for amount and currency changes
+        document.getElementById('amount').addEventListener('input', function() {
+            // Only update payment request amount, don't recreate
+            if (paymentRequest) {
+                const amount = Math.round(parseFloat(this.value || 0) * 100);
+                paymentRequest.update({
+                    total: {
+                        label: 'Bishop S.Y. Younger Donation',
+                        amount: amount,
+                    },
+                });
+            }
+        });
+
+        document.getElementById('currency').addEventListener('change', function() {
+            // For currency changes, we need to recreate the payment request
+            // Properly destroy existing elements first
+            destroyPaymentRequest();
+
+            // Update preset buttons and recreate payment request
+            updatePresetButtons();
+            updatePaymentRequest();
+        });
+
+        // Handle card payment form submission
+        const form = document.getElementById('payment-form');
+        form.addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const amount = parseFloat(document.getElementById('amount').value || 0);
+            const currency = document.getElementById('currency').value;
+            const currencyInfo = currencyData[currency];
+
+            if (amount < 0.5) {
+                showMessage(`Minimum amount is ${currencyInfo.symbol}0.50`, 'error');
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                // Create payment intent with currency
+                const response = await fetch('/createPaymentIntent', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ amount, currency }),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+                    throw new Error(errorData.error || `Server error: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (!data.clientSecret) {
+                    throw new Error('Invalid response from server');
+                }
+
+                // Confirm payment
+                const { error } = await stripe.confirmCardPayment(data.clientSecret, {
+                    payment_method: {
+                        card: cardElement,
+                    }
+                });
+
+                if (error) {
+                    showMessage(`Payment failed: ${error.message}`, 'error');
+                } else {
+                    // Show success modal instead of message
+                    showSuccessModal(amount, currency);
+                }
+            } catch (error) {
+                console.error('Payment error:', error);
+                showMessage(`Payment failed: ${error.message}`, 'error');
+            }
+
+            setLoading(false);
+        });
+
+        function setLoading(isLoading) {
+            const button = document.getElementById('payment-button');
+            const buttonText = document.getElementById('button-text');
+            const buttonSpinner = document.getElementById('button-spinner');
+
+            if (isLoading) {
+                button.disabled = true;
+                buttonText.style.display = 'none';
+                buttonSpinner.style.display = 'inline-block';
+            } else {
+                button.disabled = false;
+                buttonText.style.display = 'inline-block';
+                buttonSpinner.style.display = 'none';
+            }
+        }
+
+        function showMessage(message, type) {
+            const resultDiv = document.getElementById('payment-result');
+            resultDiv.className = type;
+            resultDiv.textContent = message;
+
+            if (type === 'success') {
+                setTimeout(() => {
+                    resultDiv.textContent = '';
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>
