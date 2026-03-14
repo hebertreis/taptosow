@@ -35,19 +35,20 @@
         <h2>Setup Instructions</h2>
         <div class="info">
             <h3>Required Configuration:</h3>
-            <pre>
+                <pre>
 1. Set Stripe Secret Key in Firebase:
-   firebase functions:config:set stripe.secret_key="sk_test_YOUR_KEY"
+    firebase functions:config:set stripe.secret_key="sk_test_YOUR_KEY"
 
-2. Update Publishable Key in index.html:
-   Replace 'pk_test_YOUR_PUBLISHABLE_KEY_HERE' with your actual test key
+2. Set Publishable Key for the frontend (root .env):
+    STRIPE_PUBLIC_KEY=pk_test_YOUR_PUBLISHABLE_KEY_HERE
+    Note: The dev server exposes `STRIPE_PUBLIC_KEY` to the client (via vite envPrefix).
 
 3. Deploy Functions:
-   firebase deploy --only functions
+    firebase deploy --only functions
 
 4. Deploy Hosting:
-   firebase deploy --only hosting
-            </pre>
+    firebase deploy --only hosting
+                </pre>
         </div>
     </div>
 
@@ -55,7 +56,7 @@
         // Check configuration
         function checkConfig() {
             const configDiv = document.getElementById('config-status');
-            const currentKey = 'pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG'; // This should match your actual config
+            const currentKey = window.__STRIPE_PUBLIC_KEY__ || 'pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG'; // This should match your actual config
             
             if (currentKey === 'pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG') {
                 configDiv.innerHTML = '<div class="warning">⚠️ Stripe publishable key not configured</div>';
