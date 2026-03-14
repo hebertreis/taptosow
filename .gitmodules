@@ -1,0 +1,3 @@
+[submodule "send-din-din"]
+	path = send-din-din
+	url = git@github.com:hebertreis/send-din-din.git
