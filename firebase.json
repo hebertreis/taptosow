@@ -21,6 +21,10 @@
     ],
     "rewrites": [
       {
+        "source": "/admin",
+        "destination": "/admin.html"
+      },
+      {
         "source": "/createPaymentIntent",
         "function": "createPaymentIntent"
       },

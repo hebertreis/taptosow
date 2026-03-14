@@ -29,13 +29,18 @@ async function logAnalytics(collectionName, req, metadata = {}) {
     else if (userAgent.match(/iPhone|iPad|iPod/)) os = "iOS";
     else if (userAgent.match(/Linux/)) os = "Linux";
 
+    // Sanitize headers to remove sensitive information
+    const sensitiveHeaders = ['authorization', 'cookie', 'set-cookie', 'proxy-authorization'];
+    const headers = { ...req.headers };
+    sensitiveHeaders.forEach(h => delete headers[h]);
+
     const analyticsData = {
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
       ip,
       userAgent,
       os,
       referrer,
-      headers: req.headers,
+      headers,
       ...metadata
     };
 
@@ -44,6 +49,7 @@ async function logAnalytics(collectionName, req, metadata = {}) {
     logger.error(`Error logging analytics to ${collectionName}:`, err);
   }
 }
+
 
 // 🔐 SECURE: Define Stripe secret key using Firebase v2 Secret Manager
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
@@ -145,7 +151,6 @@ exports.createPaymentIntent = onRequest(
       currency: currency.toUpperCase(),
       source: 'The Ramp Church DMV - OneTapGo Giving'
     });
-
     // Log payment analytics
     await logAnalytics('analytics_payments', req, {
       type: 'payment_intent_created',
@@ -192,6 +197,12 @@ exports.redirectAuto = onRequest({ cors: true, maxInstances: 5 }, async (req, re
     let targetUrl = fallbackUrl;
     let redirectCode = (configData && (configData.type === 301 || configData.type === '301')) ? 301 : 302;
 
+    let tagAnalytics = {
+      tagId: tagId || 'none',
+      destinationUrl: targetUrl,
+      type: 'tag_redirect'
+    };
+
     if (tagId) {
       const tagRef = admin.firestore().collection('tags').doc(tagId);
       const tagDoc = await tagRef.get();
@@ -202,6 +213,11 @@ exports.redirectAuto = onRequest({ cors: true, maxInstances: 5 }, async (req, re
         if (tagData.url) {
           targetUrl = tagData.url;
         }
+
+        // Add tenant and sectorId to analytics if they exist
+        if (tagData.tenant) tagAnalytics.tenant = tagData.tenant;
+        if (tagData.sectorId) tagAnalytics.sectorId = tagData.sectorId;
+
         await tagRef.update({
           access_count: admin.firestore.FieldValue.increment(1),
           updated_at: now
@@ -220,11 +236,7 @@ exports.redirectAuto = onRequest({ cors: true, maxInstances: 5 }, async (req, re
     }
 
     // Log analytics
-    await logAnalytics('analytics_tags', req, {
-      tagId: tagId || 'none',
-      destinationUrl: targetUrl,
-      type: 'tag_redirect'
-    });
+    await logAnalytics('analytics_tags', req, tagAnalytics);
 
     return res.redirect(redirectCode, targetUrl);
   } catch (err) {
