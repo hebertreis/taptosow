@@ -6,17 +6,23 @@
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "build:test": "cp .env.test .env && echo 'Environment set to test' && npm run build",
+    "build:dmv": "cp .env.dmv .env && echo 'Environment set to dmv' && npm run build",
+    "build:bsyym": "cp .env.bsyym .env && echo 'Environment set to bsyym' && npm run build",
+    "build:cre8": "cp .env.cre8 .env && echo 'Environment set to cre8' && npm run build"
   },
   "engines": {
     "node": "22"
   },
   "main": "index.js",
   "dependencies": {
+    "axios": "^1.13.2",
+    "cors": "^2.8.5",
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^6.0.1",
     "stripe": "^14.0.0",
-    "cors": "^2.8.5"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "firebase-functions-test": "^3.1.0"

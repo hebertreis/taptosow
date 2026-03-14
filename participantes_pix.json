@@ -1,0 +1,5160 @@
+{
+    "data": [
+        {
+            "id": "06c19499-3412-4125-84b7-d0fbc98b5019",
+            "name": "Nubank",
+            "tradeName": "Nubank",
+            "description": "Simples, transparente e seguro: o Nubank é a empresa líder em tecnologia financeira na América Latina que já reinventou a vida financeira de mais de 40 milhões de clientes com conta digital, cartão de crédito, empréstimo, investimentos, seguros e mais.",
+            "ispb": "18236120",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "nubank",
+            "avatar": "https://storage.googleapis.com/inic-data/nubank.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:27:18.276Z",
+            "updatedAt": "2026-03-03T09:00:32.866Z"
+        },
+        {
+            "id": "221601a9-6e70-4698-9ea3-1bb28ceb4269",
+            "name": "Caixa",
+            "tradeName": "Caixa",
+            "description": "A CAIXA tem as melhores soluções para você e sua empresa. Além de crédito, investimentos, habitação e outros, a CAIXA realiza sonhos e acompanha sua jornada para empreender. Seus dados estão seguros e você tem a solidez e a tradição da CAIXA.",
+            "ispb": "00360305",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "caixa",
+            "avatar": "https://storage.googleapis.com/inic-data/caixa.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:17.496Z",
+            "updatedAt": "2026-03-03T09:00:05.907Z"
+        },
+        {
+            "id": "756b9782-d9d4-4f9b-9756-997eba0e2cbd",
+            "name": "PicPay",
+            "tradeName": "PicPay",
+            "description": "O PicPay é uma Instituição de Pagamento que desde 2012 revolucionou a forma como as pessoas lidam com o dinheiro. Com o PicPay você pode receber e enviar dinheiro, guardar dinheiro rendendo mais que a poupança e ter acesso a produtos financeiros.",
+            "ispb": "22896431",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "picpay",
+            "avatar": "https://storage.googleapis.com/inic-data/picpay.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:57.477Z",
+            "updatedAt": "2026-03-03T09:00:21.833Z"
+        },
+        {
+            "id": "aaacb9cf-e8c3-402b-93b8-cf4d3e2ec497",
+            "name": "Santander",
+            "tradeName": "Santander",
+            "description": "Santander Pessoa Física é a marca do Banco Santander para Pessoas. O Banco atua desde 1982 oferecendo um amplo portfólio de produtos e serviços em seus  canais.",
+            "ispb": "90400888",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "santander",
+            "avatar": "https://storage.googleapis.com/inic-data/santander.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:51.036Z",
+            "updatedAt": "2026-03-03T09:00:07.427Z"
+        },
+        {
+            "id": "439a9b5c-2cfb-4e57-b60b-20eea83899ca",
+            "name": "Bradesco",
+            "tradeName": "Bradesco",
+            "description": "O Bradesco oferece as melhores soluções financeiras, como contas, cartões, investimentos, previdência, seguros, empréstimos, financiamentos, consórcio e muito mais nos Canais Digitais, ajudando clientes dos mais variados perfis a desafiarem o futuro.",
+            "ispb": "60746948",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "bradesco",
+            "avatar": "https://storage.googleapis.com/inic-data/bradesco.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:30.824Z",
+            "updatedAt": "2026-03-03T09:00:08.477Z"
+        },
+        {
+            "id": "68308291-ec0d-4398-83ce-68b6b1087e49",
+            "name": "Itaú",
+            "tradeName": "Itaú",
+            "description": "O Itaú é o maior banco privado do Brasil e está presente em diversos países, contando com empresas no grupo que oferecem crédito, financiamento, investimentos e muito mais. Aproveite o banco completo com soluções que sempre atendem suas necessidades.",
+            "ispb": "60701190",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "itau",
+            "avatar": "https://storage.googleapis.com/inic-data/itau.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:12.302Z",
+            "updatedAt": "2026-03-03T09:00:17.248Z"
+        },
+        {
+            "id": "d7e27a98-ef6c-4b79-b2d8-c2527eba8d84",
+            "name": "Banco Inter",
+            "tradeName": "Banco Inter",
+            "description": "Simplicidade pra você e para sua empresa Mais que um banco, uma plataforma de serviços. Conta digital gratuita, plataforma de investimentos, seguros, crédito, shopping, cashback e muito mais! inter.co",
+            "ispb": "00416968",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banco-inter",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-inter.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:24.470Z",
+            "updatedAt": "2026-03-03T09:00:41.356Z"
+        },
+        {
+            "id": "75db457a-612d-4d62-b557-ba9d32b05216",
+            "name": "Banco do Brasil",
+            "tradeName": "Banco do Brasil",
+            "description": "Acesse serviços bancários e conte com as facilidades BB, seja na web ou no melhor app de banco do país na opinião de usuários. Seu Banco onde e quando você precisar. Para tudo o que você imaginar.",
+            "ispb": "00000000",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banco-do-brasil",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-do-brasil.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:27.097Z",
+            "updatedAt": "2026-03-03T09:00:28.552Z"
+        },
+        {
+            "id": "6a0ec228-70b7-4292-9e64-8fa731b2a730",
+            "name": "C6 Bank",
+            "tradeName": "C6 Bank",
+            "description": "Experimente o C6 Bank! Garanta sua conta e tenha uma relação mais saudável com o seu dinheiro. Conta 100% digital em um app rápido e em constante evolução. Baixe o app. Sem anuidade. Saque sem tarifa. Saques gratuitos. Abra sua Conta.",
+            "ispb": "31872495",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "c6-bank",
+            "avatar": "https://storage.googleapis.com/inic-data/c6-bank.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:34.403Z",
+            "updatedAt": "2026-03-03T09:00:12.685Z"
+        },
+        {
+            "id": "0ff2d23d-792c-4398-a404-005313b556c1",
+            "name": "Agi",
+            "tradeName": "Agi",
+            "description": "Servidor de autorização Agibank",
+            "ispb": "10664513",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "agi",
+            "avatar": "https://agibank.com.br/logo.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": true,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2026-01-07T12:06:37.007Z",
+            "updatedAt": "2026-03-03T09:00:23.213Z"
+        },
+        {
+            "id": "9326f9b2-ae57-42c4-a0d9-acc4ba434696",
+            "name": "Mercado Pago",
+            "tradeName": "Mercado Pago",
+            "description": "O Mercado Pago, maior fintech da América Latina, atua no Brasil desde 2004 e tem como missão democratizar o acesso aos serviços financeiros e de pagamentos, contribuindo para a inclusão financeira e fomentando o poder de empreender na região.",
+            "ispb": "10573521",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "mercado-pago",
+            "avatar": "https://storage.googleapis.com/inic-data/mercado-pago.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:38.255Z",
+            "updatedAt": "2026-03-03T09:00:43.317Z"
+        },
+        {
+            "id": "649ffe9a-503d-4635-a0fd-41f4b5135b6c",
+            "name": "PagBank",
+            "tradeName": "PagBank",
+            "description": "O PagSeguro é uma empresa líder da internet brasileira, possui em seu portfolio soluções de pagamentos para o comércio eletrônico, atendendo lojas virtuais, e também para estabelecimentos comerciais.",
+            "ispb": "08561701",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "pagbank",
+            "avatar": "https://storage.googleapis.com/inic-data/pagbank.svg",
+            "outage": false,
+            "outageReason": "",
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:09.217Z",
+            "updatedAt": "2026-03-03T09:00:07.080Z"
+        },
+        {
+            "id": "d58911b5-9c4c-4570-ba32-d0bd0dbc2816",
+            "name": "Banco Mercantil",
+            "tradeName": "Banco Mercantil",
+            "description": "O Mercantil é uma instituição referência no pagamento de benefícios do INSS e atua também em investimento, crédito, seguros, câmbio e DTVM. Possui uma equipe preparada para atender clientes PF e PJ em sua rede de agências e nos canais digitais.",
+            "ispb": "17184037",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banco-mercantil",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-mercantil.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:25:56.333Z",
+            "updatedAt": "2026-03-03T09:00:52.986Z"
+        },
+        {
+            "id": "cc26199f-4949-4efd-9e1e-f21a34fd0239",
+            "name": "Banco BMG",
+            "tradeName": "Banco BMG",
+            "description": "O Banco Bmg S.A é um banco brasileiro, com sede na cidade de São Paulo. Foi fundado em 31 de julho de 1930. Ofereceremos produtos e serviços bancários como: empréstimos, investimentos, cartões para Pessoa Física e Jurídica através do app e site.",
+            "ispb": "61186680",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "banco-bmg",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-bmg.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:37.386Z",
+            "updatedAt": "2026-03-03T09:00:51.136Z"
+        },
+        {
+            "id": "3f15766b-4fc1-4d22-b6ee-5eb05d6cec8f",
+            "name": "Neon",
+            "tradeName": "Neon",
+            "description": "Authorisation Server Neon",
+            "ispb": "20855875",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "neon",
+            "avatar": "https://storage.googleapis.com/inic-data/neon.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:48.132Z",
+            "updatedAt": "2026-03-03T09:00:25.127Z"
+        },
+        {
+            "id": "e69c25b5-c63a-4c25-8564-81f57436481c",
+            "name": "Caixa Tem",
+            "tradeName": "Caixa Tem",
+            "description": "A CAIXA tem as melhores soluções para você e sua empresa. Além de crédito, investimentos, habitação e outros, a CAIXA realiza sonhos e acompanha sua jornada para empreender. Seus dados estão seguros e você tem a solidez e a tradição da CAIXA.",
+            "ispb": "00360305",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "caixa-tem",
+            "avatar": "https://storage.googleapis.com/inic-data/caixa-tem.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:15.974Z",
+            "updatedAt": "2026-03-03T09:00:57.461Z"
+        },
+        {
+            "id": "c6b15844-e748-4408-abb6-e71fd59d71c5",
+            "name": "Bradesco Empresas",
+            "tradeName": "Bradesco Empresas",
+            "description": "Empreender é um desafio diário. O Bradesco Empresas e Negócios oferece um conjunto completo de soluções financeiras para apoiar a jornada de quem empreende no presente para reinventar o futuro.",
+            "ispb": "60746948",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "bradesco-empresas",
+            "avatar": "https://storage.googleapis.com/inic-data/bradesco-empresas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:34.716Z",
+            "updatedAt": "2026-03-03T09:00:26.682Z"
+        },
+        {
+            "id": "edb215da-d1f1-47f0-b794-62a7d798ba6a",
+            "name": "Banco Inter Empresas",
+            "tradeName": "Banco Inter Empresas",
+            "description": "Conta Digital PJ completa, gratuita e sem burocracias.  A conta empresarial que oferece vantagens para você e para o seu negócio. Aproveite o melhor das soluções da sua Conta Digital e conte com a parceria que só o Inter oferece. inter.co",
+            "ispb": "00416968",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "banco-inter-empresas",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-inter-empresas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:20.694Z",
+            "updatedAt": "2026-03-03T09:00:38.315Z"
+        },
+        {
+            "id": "ba185564-2e26-420e-b6bb-af5bc7102480",
+            "name": "Next",
+            "tradeName": "Next",
+            "description": "O next é um banco digital completo e gratuito, criado para facilitar a vida das pessoas e ajudá-las a conquistar seus objetivos. Além de conta-corrente e cartões, oferece investimentos, crédito, empréstimos, seguros e promoções com lojas parceiras.",
+            "ispb": "60746948",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "next",
+            "avatar": "https://storage.googleapis.com/inic-data/next.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:32.737Z",
+            "updatedAt": "2026-03-03T09:00:39.233Z"
+        },
+        {
+            "id": "bfd95599-61c0-45ca-90cb-5d6e71d4cf9a",
+            "name": "Safra",
+            "tradeName": "Safra",
+            "description": "O Banco Safra S.A. é referência em tradição e segurança no mercado financeiro e oferece um portfólio de produtos e serviços completo para seus clientes.",
+            "ispb": "58160789",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "safra",
+            "avatar": "https://storage.googleapis.com/inic-data/safra.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:34.982Z",
+            "updatedAt": "2026-03-03T09:00:15.868Z"
+        },
+        {
+            "id": "6c8b9aed-8e24-4ad6-985f-213623a23be3",
+            "name": "Sicredi",
+            "tradeName": "Sicredi",
+            "description": "O Sicredi é uma instituição financeira cooperativa, há 120 anos valorizando o relacionamento, o crescimento em conjunto e a participação nos resultados. Facilitamos sua rotina com um atendimento próximo e soluções para você, sua empresa ou agronegócio.",
+            "ispb": "03795072",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "sicredi",
+            "avatar": "https://storage.googleapis.com/inic-data/sicredi.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:22:21.553Z",
+            "updatedAt": "2026-03-03T09:00:37.257Z"
+        },
+        {
+            "id": "a9395de2-1a63-46d8-b68e-90843cac23ae",
+            "name": "banQi",
+            "tradeName": "banQi",
+            "description": "banQi: A conta digital gratuita dos brasileiros",
+            "ispb": "30723871",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "banqi",
+            "avatar": "https://storage.googleapis.com/inic-data/banqi.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:42.234Z",
+            "updatedAt": "2026-03-03T09:00:44.553Z"
+        },
+        {
+            "id": "c2d48e71-07af-4442-8c7d-c82d0eb45e5f",
+            "name": "Sicoob",
+            "tradeName": "Sicoob",
+            "description": "O Sicoob é uma instituição financeira cooperativa que está presente em todos os estados brasileiros e conta com um portfólio completo de produtos e serviços financeiros, além de taxas bem mais justas que as encontradas no mercado financeiro convencional.",
+            "ispb": "04891850",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "sicoob",
+            "avatar": "https://storage.googleapis.com/inic-data/sicoob.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:38.886Z",
+            "updatedAt": "2026-03-03T09:00:44.009Z"
+        },
+        {
+            "id": "158dfa02-fa59-4177-9bfb-b614220dd721",
+            "name": "RecargaPay",
+            "tradeName": "RecargaPay",
+            "description": "RecargaPay Pague e Receba Tudo com Pix e Cartão",
+            "ispb": "11275560",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "recargapay",
+            "avatar": "https://storage.googleapis.com/inic-data/recargapay.svg",
+            "outage": false,
+            "outageReason": "",
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:36.761Z",
+            "updatedAt": "2026-03-03T09:00:34.724Z"
+        },
+        {
+            "id": "7c6748a1-2be0-4593-a769-77feb406b3a0",
+            "name": "Itaú Empresas",
+            "tradeName": "Itaú Empresas",
+            "description": "O Itaú Empresas é o maior Corporate & Investment Bank da América Latina e faz parte do grupo Itaú Unibanco. Atendemos investidores institucionais e empresas de médio a grande porte, atuando de forma customizada em cada negócio. Saiba mais em nosso site.",
+            "ispb": "60701190",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "itau-empresas",
+            "avatar": "https://storage.googleapis.com/inic-data/itau-empresas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:10.490Z",
+            "updatedAt": "2026-03-03T09:00:13.807Z"
+        },
+        {
+            "id": "12532faa-fb28-4534-81a6-8aad89b59887",
+            "name": "Credsystem",
+            "tradeName": "Credsystem",
+            "description": "Servidor de Autenticação Credsystem",
+            "ispb": "39664698",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "credsystem",
+            "avatar": "https://storage.googleapis.com/inic-data/credsystem.svg",
+            "outage": false,
+            "outageReason": "",
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:05.110Z",
+            "updatedAt": "2026-03-03T09:00:24.215Z"
+        },
+        {
+            "id": "66c11181-42ad-4a3b-894c-8db9b224874d",
+            "name": "Quero-Quero",
+            "tradeName": "Quero-Quero",
+            "description": "Com o Quero-Quero PAG você tem uma conta digital completa, com Pix, cartões de débito e crédito, empréstimos, seguro e tudo mais que você precisar. Somos uma empresa do grupo Quero-Quero.",
+            "ispb": "01722480",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "queroquero",
+            "avatar": "https://storage.googleapis.com/inic-data/queroquero.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:07.736Z",
+            "updatedAt": "2026-03-03T09:00:14.519Z"
+        },
+        {
+            "id": "965a0520-a103-495b-86c1-7e6b4cc4e1f2",
+            "name": "Banco BV",
+            "tradeName": "Banco BV",
+            "description": "Procuramos nos adaptar ao novo momento, proporcionando mais segurança, praticidade e agilidade para você, no nosso app você tem acesso ao seu financiamento, cartão e conta digital do Banco BV",
+            "ispb": "59588111",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "banco-bv",
+            "avatar": "https://storage.googleapis.com/inic-data/bv.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:23:25.525Z",
+            "updatedAt": "2026-03-03T09:00:35.155Z"
+        },
+        {
+            "id": "8dd11bd5-165e-4662-9eaa-112ef0d499c0",
+            "name": "Banco XP",
+            "tradeName": "Banco XP",
+            "description": "O Banco XP é um banco múltiplo que tem as melhores soluções financeiras, tais como: conta corrente, cartão de crédito, Investback, benefícios em lojas parceiras, empréstimos, câmbio e muito mais, pensando em você e também no seu negócio!",
+            "ispb": "33264668",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "banco-xp",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-xp.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:29.437Z",
+            "updatedAt": "2026-03-03T09:00:33.741Z"
+        },
+        {
+            "id": "b397dd9c-62b2-4632-bce7-85f56666c083",
+            "name": "BTG Banking",
+            "tradeName": "BTG Banking",
+            "description": "O BTG Banking é um banco completo, uma plataforma que aprende com você e entende as suas necessidades para entregar soluções financeiras inteligentes que resolvem o seu dia a dia enquanto você planeja o seu futuro.",
+            "ispb": "30306294",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "btg-banking",
+            "avatar": "https://storage.googleapis.com/inic-data/btg-banking.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:26.547Z",
+            "updatedAt": "2026-03-03T09:00:21.583Z"
+        },
+        {
+            "id": "be5d6358-cdbb-47c5-93ff-cb999d992a9a",
+            "name": "Itaú Emps",
+            "tradeName": "Itaú Emps",
+            "description": "O Itaú Emps é uma conta 100% digital para pequenas e médias empresas. Nela, você faz transações, controla o fluxo de caixa, acompanha os recebíveis das maquininhas e ainda recebe dicas de gestão para manter a saúde do seu negócio em dia!",
+            "ispb": "60701190",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "itau-emps",
+            "avatar": "https://storage.googleapis.com/inic-data/itau-emps.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:06.221Z",
+            "updatedAt": "2026-03-03T09:00:19.612Z"
+        },
+        {
+            "id": "22edf759-2e70-4ed3-a720-6baf7e5dafd4",
+            "name": "99Pay",
+            "tradeName": "99Pay",
+            "description": "O 99Pay é uma carteira digital no Brasil com operações em diversos serviços. Aproveite uma solução completa que sempre atende às suas necessidades.",
+            "ispb": "24313102",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "99pay",
+            "avatar": "https://storage.googleapis.com/inic-data/99pay.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-05-27T11:29:51.632Z",
+            "updatedAt": "2026-03-03T09:00:40.276Z"
+        },
+        {
+            "id": "18ce9615-81de-4aaa-8671-e8a95d570fb8",
+            "name": "Banestes",
+            "tradeName": "Banestes",
+            "description": "O Banestes S.A. - Banco do Estado do Espírito Santo (B3: BEES3, BEES4), sociedade anônima de capital aberto e de economia mista criada em 1937, é um banco múltiplo controlado pelo estado do Espírito Santo. Detém a maior rede bancária do estado.",
+            "ispb": "28127603",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banestes",
+            "avatar": "https://storage.googleapis.com/inic-data/banestes.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:22:16.160Z",
+            "updatedAt": "2026-03-03T09:00:28.046Z"
+        },
+        {
+            "id": "612da9a3-ee82-4f9e-9919-fa8ba88800f9",
+            "name": "Banco PAN",
+            "tradeName": "Banco PAN",
+            "description": "O Banco PAN tem o objetivo de trazer um novo olhar para os desafios financeiros do brasileiro por meio de um portfólio de produtos: conta digital, cartão de crédito, empréstimos, financiamento de veículos e mais.",
+            "ispb": "59285411",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "banco-pan",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-pan.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:55.316Z",
+            "updatedAt": "2026-03-03T09:00:38.906Z"
+        },
+        {
+            "id": "71dee9d4-f089-4935-b860-caf2ee46a3be",
+            "name": "Ailos",
+            "tradeName": "Ailos",
+            "description": "Sistema Financeiro Cooperativo conectado por um mesmo propósito e crença na economia colaborativa. Tiramos ideias do papel e movimentamos um círculo virtuoso de prosperidade, que move sonhos e impulsiona o futuro coletivo. Somos todos Ailos.",
+            "ispb": "05463212",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "ailos",
+            "avatar": "https://storage.googleapis.com/inic-data/ailos.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:07.412Z",
+            "updatedAt": "2026-03-03T09:00:48.483Z"
+        },
+        {
+            "id": "770f6211-dbd4-4c84-b6b1-9104b4a99359",
+            "name": "Santander Empresas",
+            "tradeName": "Santander Empresas",
+            "description": "Santander Pessoa Jurídica é a marca do Banco Santander para Empresas. O Banco atua desde 1982 oferecendo um amplo portfólio de produtos e serviços em seus  canais.",
+            "ispb": "90400888",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "santander-empresas",
+            "avatar": "https://storage.googleapis.com/inic-data/santander-empresas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:49.914Z",
+            "updatedAt": "2026-03-03T09:00:47.615Z"
+        },
+        {
+            "id": "88dc57a4-1dab-4493-8b02-b8f0c15a2d89",
+            "name": "Banrisul",
+            "tradeName": "Banrisul",
+            "description": "Seja na facilidade do Aplicativo Banrisul ou em uma de nossas agências espalhadas pelo Rio Grande do Sul e pelo Brasil, o Banrisul é o parceiro ideal para você e para o seu negócio. Compartilhe os seus dados com o Banrisul.",
+            "ispb": "92702067",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banrisul",
+            "avatar": "https://storage.googleapis.com/inic-data/banrisul.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:14.223Z",
+            "updatedAt": "2026-03-03T09:00:36.562Z"
+        },
+        {
+            "id": "40463326-a162-4b44-9afe-7803a6554e31",
+            "name": "BRB",
+            "tradeName": "BRB",
+            "description": "O Banco BRB oferece soluções completas para pessoas físicas e jurídicas. O Super App BRB é um dos mais bem avaliados do mercado e reflete o compromisso do Banco com a inovação, a excelência digital e a melhor experiência para o cliente.",
+            "ispb": "00000208",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "brb",
+            "avatar": "https://storage.googleapis.com/inic-data/brb.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:01.954Z",
+            "updatedAt": "2026-03-03T09:00:04.038Z"
+        },
+        {
+            "id": "be927760-d679-4c60-b5af-de2db2fa7bd6",
+            "name": "PicPay Negócios",
+            "tradeName": "PicPay Negócios",
+            "description": "O PicPay é uma Instituição de Pagamento que desde 2012 revolucionou a forma como as pessoas lidam com o dinheiro. Com o PicPay Negócios você vende de forma simples e oferece maior segurança e conforto para seus clientes.",
+            "ispb": "22896431",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "picpay-negocios",
+            "avatar": "https://storage.googleapis.com/inic-data/picpay-negocios.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:56.625Z",
+            "updatedAt": "2026-03-03T09:00:53.669Z"
+        },
+        {
+            "id": "646b2dc7-3a9e-4d2e-9ded-665e7150d529",
+            "name": "Unicred",
+            "tradeName": "Unicred",
+            "description": "O Sistema Unicred nasceu em 1989 com o propósito de levar prosperidade à vida de todos os cooperados. Possuímos atendimento qualificado, baseado em assessoria financeira e preços justos através dos nossos canais físicos e digitais. Seja Open com a Unicred",
+            "ispb": "00315557",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "unicred",
+            "avatar": "https://storage.googleapis.com/inic-data/unicred.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:53.436Z",
+            "updatedAt": "2026-03-03T09:00:50.402Z"
+        },
+        {
+            "id": "4831632d-07f1-472a-a402-ecc4f37b5727",
+            "name": "Banco BV Empresas",
+            "tradeName": "Banco BV Empresas",
+            "description": "Estruturamos soluções sólidas e inovadoras para nossos clientes, proporcionando mais segurança e praticidade. No seu IB é possível acessar seus dados cadastrais, produtos de crédito, câmbio e investimentos, além de informações de movimentação de sua conta",
+            "ispb": "59588111",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "banco-bv-empresas",
+            "avatar": "https://storage.googleapis.com/inic-data/bv-empresas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:23:58.733Z",
+            "updatedAt": "2026-03-03T09:00:33.421Z"
+        },
+        {
+            "id": "84505457-6c74-42a2-8976-08aa906818b0",
+            "name": "Cresol",
+            "tradeName": "Cresol",
+            "description": "Cresol confederação - Detentora de contas",
+            "ispb": "10398952",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "cresol",
+            "avatar": "https://storage.googleapis.com/inic-data/cresol.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:09.318Z",
+            "updatedAt": "2026-03-03T09:00:47.265Z"
+        },
+        {
+            "id": "d8268cae-e69d-4b8b-866c-66281ddb3819",
+            "name": "Ebanx",
+            "tradeName": "Ebanx",
+            "description": "Servidor de Autorização para a Fase 3.",
+            "ispb": "21018182",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "ebanx",
+            "avatar": "https://storage.googleapis.com/inic-data/ebanx.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:12.516Z",
+            "updatedAt": "2026-03-03T09:00:11.621Z"
+        },
+        {
+            "id": "8cdad2fd-c8d5-42c0-9a00-f0f6826470d2",
+            "name": "InfinitePay",
+            "tradeName": "InfinitePay",
+            "description": "InfinitePay",
+            "ispb": "18189547",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "infinitepay",
+            "avatar": "https://auth.infinitepay.io/images/logo.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-10-27T20:24:50.048Z",
+            "updatedAt": "2026-03-03T09:00:20.303Z"
+        },
+        {
+            "id": "c42307b0-461f-4242-a72c-0694a05ca199",
+            "name": "Accredito",
+            "tradeName": "Accredito",
+            "description": "ACCREDITO-SCD",
+            "ispb": "37715993",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "accredito",
+            "avatar": "https://storage.googleapis.com/inic-data/accredito.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:27:08.546Z",
+            "updatedAt": "2026-03-03T09:00:09.895Z"
+        },
+        {
+            "id": "268a7fa9-c764-493f-be0d-d6a0abf703bd",
+            "name": "Asaas",
+            "tradeName": "Asaas",
+            "description": "O Asaas é uma instituição de pagamento que oferece uma conta digital completa para empresas de todo o Brasil, auxiliando na gestão financeira dos negócios por meio da automatização de processos de envio e recebimento de cobranças por diferentes canais.",
+            "ispb": "19540550",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "asaas",
+            "avatar": "https://storage.googleapis.com/inic-data/asaas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:45.511Z",
+            "updatedAt": "2026-03-03T09:00:29.240Z"
+        },
+        {
+            "id": "acc11cea-cd64-47e8-9af0-f9d40368cf2a",
+            "name": "Azimut",
+            "tradeName": "Azimut",
+            "description": "O Banco XP é um banco múltiplo que tem as melhores soluções financeiras, tais como: conta corrente, cartão de crédito, Investback, benefícios em lojas parceiras, empréstimos, câmbio e muito mais, pensando em você e também no seu negócio!",
+            "ispb": "33264668",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "azimut",
+            "avatar": "https://storage.googleapis.com/inic-data/azimut.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:25.184Z",
+            "updatedAt": "2026-03-03T09:00:46.117Z"
+        },
+        {
+            "id": "eca0b435-cb2d-45d9-b35a-7e22968b3a68",
+            "name": "Banco Arbi",
+            "tradeName": "Banco Arbi",
+            "description": "Banco Arbi possui as melhores e mais completas soluções financeiras para nossos clientes e parceiros.",
+            "ispb": "54403563",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banco-arbi",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-arbi.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:51.604Z",
+            "updatedAt": "2026-03-03T09:00:24.769Z"
+        },
+        {
+            "id": "498f0d4f-3ff7-4010-a43f-f59c63680f27",
+            "name": "Banco da Amazônia",
+            "tradeName": "Banco da Amazônia",
+            "description": "O BASA atua desde 1942 sendo o principal agente de crédito de fomento da região Amazônica, oferecendo também serviços de pagamento e produtos de investimento para os clientes pessoas físicas e jurídicas.",
+            "ispb": "04902979",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banco-da-amazonia",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-da-amazonia.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:04.619Z",
+            "updatedAt": "2026-03-03T09:00:50.616Z"
+        },
+        {
+            "id": "f9cabb03-876d-4eea-974c-0d8ce4bd4860",
+            "name": "Banco Digio",
+            "tradeName": "Banco Digio",
+            "description": "O Digio é mais que um banco digital, é uma bantech. Pois conta com a solidez de um banco e agilidade de uma fintech. Com tecnologia, buscamos cumprir nossa principal missão: transformar a vida financeira dos brasileiros com segurança e transparência.",
+            "ispb": "27098060",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "banco-digio",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-digio.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:35.088Z",
+            "updatedAt": "2026-03-03T09:00:20.079Z"
+        },
+        {
+            "id": "6370a748-6bda-4a37-9e88-5e68cc4cf100",
+            "name": "Banco do Nordeste",
+            "tradeName": "Banco do Nordeste",
+            "description": "Nos 1.990 municípios onde atua, o Banco do Nordeste oferta crédito com taxas diferenciadas, promovendo a competitividade das empresas e apoiando empreendedores individuais por meio do microcrédito (Crediamigo e Agroamigo).",
+            "ispb": "07237373",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banco-do-nordeste",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-do-nordeste.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:17.386Z",
+            "updatedAt": "2026-03-03T09:00:57.022Z"
+        },
+        {
+            "id": "4719b9dc-8bf0-4ea3-a70d-c85ef8b11682",
+            "name": "Banco Ribeirão Preto",
+            "tradeName": "Banco Ribeirão Preto",
+            "description": "Servidor de autorização BRP - O Banco BRP oferece soluções financeiras específicas e totalmente alinhadas aos projetos das empresas e às necessidades das pessoas físicas que atende.",
+            "ispb": "00517645",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banco-ribeirao-preto",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-ribeirao-preto.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:54.217Z",
+            "updatedAt": "2026-03-03T09:00:48.701Z"
+        },
+        {
+            "id": "e510f7b9-6c52-49e4-8245-8a0eda504001",
+            "name": "Banco Semear",
+            "tradeName": "Banco Semear",
+            "description": "A instituição Banco Semear atua desde 2006 sendo um dos maiores bancos do varejo do Brasil, seja na web ou pelo App oferecemos serviços de pagamentos, ofertas de crédito e investimentos para Pessoas Físicas e Jurídicas.",
+            "ispb": "00795423",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banco-semear",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-semear.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:30.940Z",
+            "updatedAt": "2026-03-03T09:00:14.011Z"
+        },
+        {
+            "id": "2cac58c2-f9e5-48a3-b981-7263a0641645",
+            "name": "Banco Sofisa",
+            "tradeName": "Banco Sofisa",
+            "description": "Fundado em 1961, o Banco Sofisa é uma tradicional instituição financeira do país. Conhecido pela solidez e tradição de bons serviços, hoje reúne clientes fiéis que contam com parceiro de confiança que entende suas atividades e participa de seu dia-a-dia.",
+            "ispb": "60889128",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banco-sofisa",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-sofisa.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:30.721Z",
+            "updatedAt": "2026-03-03T09:00:27.306Z"
+        },
+        {
+            "id": "d0056aca-6180-4ae4-95fa-2e30a08b4a9a",
+            "name": "Banco XP Empresas",
+            "tradeName": "Banco XP Empresas",
+            "description": "O Banco XP é um banco múltiplo que tem as melhores soluções financeiras, tais como: conta corrente, cartão de crédito, Investback, benefícios em lojas parceiras, empréstimos, câmbio e muito mais, pensando em você e também no seu negócio!",
+            "ispb": "33264668",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "banco-xp-empresas",
+            "avatar": "https://storage.googleapis.com/inic-data/banco-xp-empresas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:26.899Z",
+            "updatedAt": "2026-03-03T09:00:39.894Z"
+        },
+        {
+            "id": "14ed9bbd-201e-4cf7-8211-38b00978d4d1",
+            "name": "Banese",
+            "tradeName": "Banese",
+            "description": "Detentora de Contas",
+            "ispb": "13009717",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banese",
+            "avatar": "https://storage.googleapis.com/inic-data/banese.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-05-27T11:31:16.825Z",
+            "updatedAt": "2026-03-03T09:00:49.288Z"
+        },
+        {
+            "id": "15712c2b-e8eb-4e2f-b84d-656c20d7ef0c",
+            "name": "Banpará",
+            "tradeName": "Banpará",
+            "description": "O Banpará é uma Sociedade de Economia Mista, organizada sob a forma de banco múltiplo, com a missão de gerar valor para o Estado do Pará, como um Banco autossustentável que atua para o desenvolvimento econômico e social.",
+            "ispb": "04913711",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "banpara",
+            "avatar": "https://storage.googleapis.com/inic-data/banpara.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:26.110Z",
+            "updatedAt": "2026-03-03T09:00:42.839Z"
+        },
+        {
+            "id": "2d641a88-4441-44d9-b39a-a864d1ce8890",
+            "name": "BTG Empresas",
+            "tradeName": "BTG Empresas",
+            "description": "O BTG Empresas é feito para empreendedores que possuem pequenas ou médias empresas e buscam soluções financeiras para ajudar no crescimento de seus negócios.",
+            "ispb": "30306294",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "btg-empresas",
+            "avatar": "https://storage.googleapis.com/inic-data/btg-empresas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:27.978Z",
+            "updatedAt": "2026-03-03T09:00:53.434Z"
+        },
+        {
+            "id": "dee2fb3b-3e5b-44d7-8c98-d36f56d6a6a7",
+            "name": "Celcoin",
+            "tradeName": "Celcoin",
+            "description": "A Rede Celcoin é uma plataforma digital de produtos e serviços financeiros, sem taxas mensais ou de adesão. Atuamos com sistema pré-pago, em que você realiza um depósito na sua conta, para utilizar com as funcionalidades disponíveis no aplicativo.",
+            "ispb": "13935893",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "celcoin",
+            "avatar": "https://storage.googleapis.com/inic-data/celcoin.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:38.997Z",
+            "updatedAt": "2026-03-03T09:00:47.006Z"
+        },
+        {
+            "id": "4461caea-0ec0-4f90-a3f6-016d17b62f55",
+            "name": "Cielo",
+            "tradeName": "Cielo",
+            "description": "A Cielo é uma empresa de tecnologia e inovação, líder no segmento de pagamentos eletrônicos em toda América Latina, oferecendo soluções que contribuem com os mais de 1,5 milhão de clientes ativos, do pequeno empreendedor ao grande varejista.",
+            "ispb": "01027058",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "cielo",
+            "avatar": "https://storage.googleapis.com/inic-data/cielo.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:25:59.632Z",
+            "updatedAt": "2026-03-03T09:00:11.020Z"
+        },
+        {
+            "id": "0334b3ad-d466-4a5d-bb88-fa12caff07bb",
+            "name": "Clear",
+            "tradeName": "Clear",
+            "description": "O Banco XP é um banco múltiplo que tem as melhores soluções financeiras, tais como: conta corrente, cartão de crédito, Investback, benefícios em lojas parceiras, empréstimos, câmbio e muito mais, pensando em você e também no seu negócio!",
+            "ispb": "33264668",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "clear",
+            "avatar": "https://storage.googleapis.com/inic-data/clear.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-05-27T11:31:12.342Z",
+            "updatedAt": "2026-03-03T09:00:04.562Z"
+        },
+        {
+            "id": "d04956a5-368a-4c23-bb5d-e7f0c3c8976d",
+            "name": "Conta Bemol",
+            "tradeName": "Conta Bemol",
+            "description": "Declaramos que a Conta Bemol é uma parceria entre a Bemol Serviços Financeiros e a Instituição de Pagamento Dock Soluções em Meios de Pagamento S.A.",
+            "ispb": "13370835",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "conta-bemol",
+            "avatar": "https://statics.contabemol.com.br/images/contabemol/emails/Sem_fundo_Azul_Versao_reduzida.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-07-15T14:30:04.908Z",
+            "updatedAt": "2026-03-03T09:00:26.360Z"
+        },
+        {
+            "id": "6e3b6f08-23c5-4284-ae5e-e6428e317a86",
+            "name": "Cora",
+            "tradeName": "Cora",
+            "description": "A Cora é uma fintech brasileira que desde 2019 oferece soluções para ajudar na jornada do pequeno e médio empreendedor. A Cora quer libertar quem empreende das burocracias e taxas abusivas, descomplicando a gestão financeira do pequeno negócio.",
+            "ispb": "37880206",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "cora",
+            "avatar": "https://storage.googleapis.com/inic-data/cora.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:18.714Z",
+            "updatedAt": "2026-03-03T09:00:31.418Z"
+        },
+        {
+            "id": "d0a262b8-e097-4e53-b5c1-7c26d064afbd",
+            "name": "Crefisa",
+            "tradeName": "Crefisa",
+            "description": "A Crefisa tem soluções financeiras para diversos públicos: Aposentados, Pensionistas, Servidores Públicos, Funcionários de Empresas Privadas. Você também pode abrir uma conta, portar seu salário e ter todas as vantagens de ser um cliente Crefisa.",
+            "ispb": "60779196",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "crefisa",
+            "avatar": "https://storage.googleapis.com/inic-data/crefisa.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:52.139Z",
+            "updatedAt": "2026-03-03T09:00:51.984Z"
+        },
+        {
+            "id": "579d1186-f64c-4ebb-8530-2c6db9f2a10f",
+            "name": "Dock",
+            "tradeName": "Dock",
+            "description": "A Dock é uma instituição de pagamentos que simplifica a relação do mercado com dinheiro, de maneira segura e transparente. Somos participante do Open Banking, trazendo mais liberdade aos nossos clientes.",
+            "ispb": "13370835",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "dock",
+            "avatar": "https://storage.googleapis.com/inic-data/dock.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:27:11.689Z",
+            "updatedAt": "2026-03-03T09:00:22.543Z"
+        },
+        {
+            "id": "ebbed125-5cd7-42e3-965d-2e7af8e3b7ae",
+            "name": "Efí",
+            "tradeName": "Efí",
+            "description": "A Efí é tudo que o empreendedor precisa: Conta Digital com cartão de débito e pré-pago, emissão de boletos, carnês e links de pagamento, Pix, APIs de recebimento, gestão de clientes e atendimento exclusivo de segunda a segunda, das 07h às 22h.",
+            "ispb": "09089356",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "efi",
+            "avatar": "https://storage.googleapis.com/inic-data/efi.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:27:36.617Z",
+            "updatedAt": "2026-03-03T09:00:16.300Z"
+        },
+        {
+            "id": "cb9c5532-c649-4268-8a8d-0787a277318e",
+            "name": "FitBank",
+            "tradeName": "FitBank",
+            "description": "Somos uma infratech banking nativa em nuvem com tecnologia 100% proprietária, que atua no mercado B2B2C. Toda empresa pode ter poder de banco e por isso oferecemos em nosso Smart CoreBanking soluções completas de Payments as a Service e BaaS.",
+            "ispb": "13203354",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "fitbank",
+            "avatar": "https://storage.googleapis.com/inic-data/fitbank.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:11.216Z",
+            "updatedAt": "2026-03-03T09:00:10.605Z"
+        },
+        {
+            "id": "80a8f94c-6c7b-4731-9611-952f3bdfd00c",
+            "name": "Íon",
+            "tradeName": "Íon",
+            "description": "O íon Itaú é mais que um app. É um jeito inovador de investir, que integra seus investimentos por meio de experiências personalizadas, educação gratuita e assessoria isenta e especializada, que só ganha quando você ganha. É hora de investir nessa relação.",
+            "ispb": "60701190",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "ion",
+            "avatar": "https://storage.googleapis.com/inic-data/ion.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:08.639Z",
+            "updatedAt": "2026-03-03T09:00:25.793Z"
+        },
+        {
+            "id": "b4c57bee-261d-48d5-97ba-e3599029cd05",
+            "name": "Listo",
+            "tradeName": "Listo",
+            "description": "Listo Sociedade de Crédito Direto S.A.",
+            "ispb": "34088029",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "listo",
+            "avatar": "https://storage.googleapis.com/inic-data/listo.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:15.855Z",
+            "updatedAt": "2026-03-03T09:00:43.088Z"
+        },
+        {
+            "id": "7a7a9a8d-f086-44b6-b81e-215d516c27c1",
+            "name": "Midway",
+            "tradeName": "Midway",
+            "description": "A Midway é a financeira que facilita o dia a dia dos brasileiros. Conectada às grandes marcas do grupo Riachuelo, oferecemos soluções financeiras acessíveis, personalizadas e tecnológicas.",
+            "ispb": "09464032",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "midway",
+            "avatar": "https://storage.googleapis.com/inic-data/midway.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:27:06.466Z",
+            "updatedAt": "2026-03-03T09:00:23.656Z"
+        },
+        {
+            "id": "10987c3d-7f6a-4a54-a25d-9eb3e2ab30bf",
+            "name": "Modalmais",
+            "tradeName": "Modalmais",
+            "description": "O Banco XP é um banco múltiplo que tem as melhores soluções financeiras, tais como: conta corrente, cartão de crédito, Investback, benefícios em lojas parceiras, empréstimos, câmbio e muito mais, pensando em você e também no seu negócio!",
+            "ispb": "33264668",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "modalmais",
+            "avatar": "https://storage.googleapis.com/inic-data/modalmais.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:23.730Z",
+            "updatedAt": "2026-03-03T09:00:49.072Z"
+        },
+        {
+            "id": "6976323f-fe2a-4ac5-a5d6-db3016b70278",
+            "name": "MoneyPlus",
+            "tradeName": "MoneyPlus",
+            "description": "A BMP foi a 1ª fintech do Brasil iniciando suas atividades em dezembro de 1999 com o lançamento da Credicarro.com.br, uma plataforma para financiamento de veículos, somos uma instiruição financeira autorizada pelo Banco Central do Brasil desde 2009",
+            "ispb": "11581339",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "moneyplus",
+            "avatar": "https://storage.googleapis.com/inic-data/moneyplus.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:22:03.601Z",
+            "updatedAt": "2026-03-03T09:00:15.144Z"
+        },
+        {
+            "id": "778319f3-7593-45ec-a029-8eadbf8ceef7",
+            "name": "Monte Bravo",
+            "tradeName": "Monte Bravo",
+            "description": "O Banco XP é um banco múltiplo que tem as melhores soluções financeiras, tais como: conta corrente, cartão de crédito, Investback, benefícios em lojas parceiras, empréstimos, câmbio e muito mais, pensando em você e também no seu negócio!",
+            "ispb": "33264668",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "monte-bravo",
+            "avatar": "https://storage.googleapis.com/inic-data/monte-bravo.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:22.298Z",
+            "updatedAt": "2026-03-03T09:00:40.649Z"
+        },
+        {
+            "id": "7877a03d-f3e9-424d-9584-503f8a1a7d6d",
+            "name": "PagueVeloz",
+            "tradeName": "PagueVeloz",
+            "description": "Conta digital e maquininha de cartão customizadas para seu negócio.",
+            "ispb": "03816413",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "pagueveloz",
+            "avatar": "https://storage.googleapis.com/inic-data/pagueveloz.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:01.863Z",
+            "updatedAt": "2026-03-03T09:00:06.222Z"
+        },
+        {
+            "id": "66281209-b89c-40c8-9244-82c69ef01add",
+            "name": "Paraná Banco",
+            "tradeName": "Paraná Banco",
+            "description": "Nosso propósito é transformar soluções financeiras em sorrisos",
+            "ispb": "14388334",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "parana-banco",
+            "avatar": "https://storage.googleapis.com/inic-data/parana-banco.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:23.398Z",
+            "updatedAt": "2026-03-03T09:00:39.459Z"
+        },
+        {
+            "id": "b7a7ecd2-a93a-4715-b281-e79b0a388143",
+            "name": "Pefisa",
+            "tradeName": "Pefisa",
+            "description": "A Pefisa, fintech e braço financeiro do grupo Pernambucanas, é responsável pelo desenvolvimento e gestão de produtos como cartões, empréstimo pessoal, seguros e Conta Digital Pernambucanas.",
+            "ispb": "43180355",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "pefisa",
+            "avatar": "https://storage.googleapis.com/inic-data/pefisa.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:27:13.956Z",
+            "updatedAt": "2026-03-03T09:00:09.610Z"
+        },
+        {
+            "id": "9d9ff069-de05-4749-bb54-f0b6d4592337",
+            "name": "Pernambucanas",
+            "tradeName": "Pernambucanas",
+            "description": "Referência no varejo nacional, a companhia tem como marca registrada o pioneirismo e a contribuição para o progresso de diversas cidades do país. Além do varejo, a companhia tem a unidade de negócio: Pefisa, grupo financeiro da companhia.",
+            "ispb": "43180355",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "pernambucanas",
+            "avatar": "https://storage.googleapis.com/inic-data/pernambucanas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:27:16.766Z",
+            "updatedAt": "2026-03-03T09:00:52.689Z"
+        },
+        {
+            "id": "3e7b5a81-ecbd-444e-8495-50ea7b954e0e",
+            "name": "Porto Bank",
+            "tradeName": "Porto Bank",
+            "description": "A Porto Bank oferece diversas soluções financeiras como consórcio, empréstimos, cartão de crédito e agora complementamos nosso portfólio com a conta digital, garantindo mais praticidade e diferenciais aos nossos clientes.",
+            "ispb": "60701190",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "porto-bank",
+            "avatar": "https://www.itau.com.br/media/dam/m/5f8441fa0f040c89/original/Porto-Bank_Descritivo_RGB_V_Color-1.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:04.218Z",
+            "updatedAt": "2026-03-03T09:00:18.929Z"
+        },
+        {
+            "id": "fe293821-e59f-4136-a541-bafea1915612",
+            "name": "Porto Bank Empresas",
+            "tradeName": "Porto Bank PJ",
+            "description": "A Porto Bank oferece diversas soluções financeiras como consórcio, empréstimos, cartão de crédito e agora complementamos nosso portfólio com a conta digital, garantindo mais praticidade e diferenciais aos nossos clientes.”",
+            "ispb": "60701190",
+            "personType": "PJ",
+            "status": "ACTIVE",
+            "slug": "porto-bank-empresas",
+            "avatar": "https://www.itau.com.br/media/dam/m/5f8441fa0f040c89/original/Porto-Bank_Descritivo_RGB_V_Color-1.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-11-12T14:25:01.270Z",
+            "updatedAt": "2026-03-03T09:00:45.734Z"
+        },
+        {
+            "id": "10b4f3da-e04e-4904-9988-e93c8f141ab1",
+            "name": "QI SCD",
+            "tradeName": "QI SCD",
+            "description": "A QI SCD atua desde 2019 no mercado de crédito brasileiro. Nosso foco é bancarizar empresas que desejam operar crédito com seus clientes",
+            "ispb": "32402502",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "qi-scd",
+            "avatar": "https://storage.googleapis.com/inic-data/qi-scd.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:25:08.880Z",
+            "updatedAt": "2026-03-03T09:00:35.821Z"
+        },
+        {
+            "id": "10ee8292-41e0-43a2-a977-12835ace7396",
+            "name": "Rendimento",
+            "tradeName": "Rendimento",
+            "description": "Soluções para câmbio, crédito, ordens de pagamento, antecipação de recebíveis, investimentos com segurança, agilidade e expertise de 25 anos de operação.",
+            "ispb": "68900810",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "rendimento",
+            "avatar": "https://storage.googleapis.com/inic-data/rendimento.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:56.304Z",
+            "updatedAt": "2026-03-03T09:00:21.210Z"
+        },
+        {
+            "id": "8d92e794-7e32-43d2-a80e-8e19c3931bf4",
+            "name": "Rico",
+            "tradeName": "Rico",
+            "description": "A Rico é referência no mercado financeiro com nosso propósito de melhorar a vida das pessoas.",
+            "ispb": "33264668",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "rico",
+            "avatar": "https://storage.googleapis.com/inic-data/rico.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:27.949Z",
+            "updatedAt": "2026-03-03T09:00:29.752Z"
+        },
+        {
+            "id": "fde63db6-f775-44d3-ad88-406a1fb0a48d",
+            "name": "Safra Empresas",
+            "tradeName": "Safra Empresas",
+            "description": "O Banco Safra S.A. conta com um segmento exclusivo dedicado a oferecer diversas opções de produtos e serviços sob medida para cada empresa.",
+            "ispb": "58160789",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "safra-empresas",
+            "avatar": "https://storage.googleapis.com/inic-data/safra-empresas.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:36.893Z",
+            "updatedAt": "2026-03-03T09:00:49.732Z"
+        },
+        {
+            "id": "ffba6a4b-b8c0-43fe-a802-4cc65f47c7fa",
+            "name": "Sefer Investimentos",
+            "tradeName": "Sefer Investimentos",
+            "description": "A Sefer Investimentos é uma das principais distribuidoras de valores e administradora de fundos do país devidamente autorizada e supervisionada pelo Banco Central do Brasil, conforme resolução CMN nº 1.120 de 1986 do Conselho Monetário Nacional.",
+            "ispb": "00329598",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "sefer-investimentos",
+            "avatar": "https://storage.googleapis.com/inic-data/sefer.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:20.538Z",
+            "updatedAt": "2026-03-03T09:00:35.493Z"
+        },
+        {
+            "id": "99fb53a6-7da8-4482-ad40-209c0111c271",
+            "name": "Shopee",
+            "tradeName": "Shopee",
+            "description": "Shopee Auth Server",
+            "ispb": "38372267",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "shopee",
+            "avatar": "https://storage.googleapis.com/inic-data/shopee.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:55.318Z",
+            "updatedAt": "2026-03-03T09:00:37.545Z"
+        },
+        {
+            "id": "3c4a5cda-712b-42df-8389-e9912cc6a6d5",
+            "name": "Sisprime",
+            "tradeName": "Sisprime",
+            "description": "A Sisprime do Brasil é uma cooperativa de crédito fundada em 1997 que atende os cooperados em suas agências de forma presencial nos estados de São Paulo e Paraná e em todo o Brasil através dos seus canais digitais.",
+            "ispb": "02398976",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "sisprime",
+            "avatar": "https://storage.googleapis.com/inic-data/sisprime.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:58.197Z",
+            "updatedAt": "2026-03-03T09:00:32.252Z"
+        },
+        {
+            "id": "a56e9c89-012a-4197-b0e3-ff37a1b07031",
+            "name": "Stone",
+            "tradeName": "Stone",
+            "description": "Stone: solução completa de vendas feita para o seu negócio",
+            "ispb": "16501555",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "stone",
+            "avatar": "https://storage.googleapis.com/inic-data/stone.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:17.950Z",
+            "updatedAt": "2026-03-03T09:00:04.943Z"
+        },
+        {
+            "id": "878b12a5-08e0-4df2-b248-c83b76937aa6",
+            "name": "SumUp",
+            "tradeName": "SumUp",
+            "description": "O SumUp Bank, é uma instituição financeira autorizada a funcionar pelo Banco Central do Brasil, e tem como público-alvo clientes que, como você, buscam serviços de conta de pagamentos, emissão de cartão de crédito pré e pós pago e linhas de crédito.",
+            "ispb": "37241230",
+            "personType": "PF|PJ",
+            "status": "ACTIVE",
+            "slug": "sumup",
+            "avatar": "https://storage.googleapis.com/inic-data/sumup.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:21:52.605Z",
+            "updatedAt": "2026-03-03T09:00:17.646Z"
+        },
+        {
+            "id": "319b8d3c-ab1d-4c6a-bd6f-4b94faf4beed",
+            "name": "Uber Conta",
+            "tradeName": "Uber Conta",
+            "description": "A Uber Conta by Digio foi criada exclusivamente para os parceiros Uber. Além do repasse de ganhos na hora, a conta digital oferece vantagens para o dia a dia dos motoristas e entregadores, como transações sem custo, ofertas de cashback e outros.",
+            "ispb": "27098060",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "uber-conta",
+            "avatar": "https://storage.googleapis.com/inic-data/uber.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:20:33.057Z",
+            "updatedAt": "2026-03-03T09:00:07.931Z"
+        },
+        {
+            "id": "45dc7a2e-a2f5-46d8-9eb4-6afac3c0d9c2",
+            "name": "WHG",
+            "tradeName": "WHG",
+            "description": "O Banco XP é um banco múltiplo que tem as melhores soluções financeiras, tais como: conta corrente, cartão de crédito, Investback, benefícios em lojas parceiras, empréstimos, câmbio e muito mais, pensando em você e também no seu negócio!",
+            "ispb": "33264668",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "whg",
+            "avatar": "https://storage.googleapis.com/inic-data/whg.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:24:20.265Z",
+            "updatedAt": "2026-03-03T09:00:34.074Z"
+        },
+        {
+            "id": "74f9cbfb-1016-4558-a78c-5a55814ce52a",
+            "name": "Woop",
+            "tradeName": "Woop",
+            "description": "O Woop é a conta digital com tudo o que você precisa para descomplicar a sua vida financeira e ainda ajudar no desenvolvimento da sua região. Você também conta com cartão de crédito, carteiras digitais e muito mais.",
+            "ispb": "03795072",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "woop",
+            "avatar": "https://storage.googleapis.com/inic-data/woop.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": true,
+            "isAccountsEnabled": true,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:22:20.011Z",
+            "updatedAt": "2026-03-03T09:00:56.151Z"
+        },
+        {
+            "id": "25b646d8-e8b5-439c-8901-c4aacccd6ed4",
+            "name": "Z1 Instituição de Pagamento",
+            "tradeName": "Z1 Instituição de Pagamento",
+            "description": "Servidor de autorização Z1 Instituição de Pagamento",
+            "ispb": "35810871",
+            "personType": "PF",
+            "status": "ACTIVE",
+            "slug": "z1-instituicao-de-pagamento",
+            "avatar": "https://storage.googleapis.com/inic-data/z1-instituicao-de-pagamento.svg",
+            "outage": false,
+            "outageReason": null,
+            "isInstantAvailable": true,
+            "isScheduledAvailable": true,
+            "isSweepingAvailable": true,
+            "isEnrollmentAvailable": false,
+            "isAccountsEnabled": false,
+            "instant": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "scheduled": {
+                "version": "v4",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "enrollment": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "sweeping": {
+                "version": "v2",
+                "status": "ACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "automatic": {
+                "version": "v2",
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "accounts": {
+                "version": null,
+                "status": "INACTIVE",
+                "outage": false,
+                "outageReason": null
+            },
+            "createdAt": "2025-01-31T19:26:24.330Z",
+            "updatedAt": "2026-03-03T09:00:03.091Z"
+        }
+    ],
+    "cursor": {
+        "afterCursor": null,
+        "beforeCursor": null
+    }
+}

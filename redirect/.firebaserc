@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "wasser-c430a"
+  },
+  "targets": {
+    "wasser-c430a": {
+      "hosting": {
+        "wasser-c430a": [
+          "wasser-c430a"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
