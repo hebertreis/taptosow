@@ -30,18 +30,18 @@ graph TD
     A[Main App Bundle] --> B[Core Components]
     A --> C[Lazy Routes]
     A --> D[Vendor Chunks]
-    
+
     B --> E[Essential UI Components]
     B --> F[Error Boundaries]
-    
+
     C --> G[Payment Interface - Lazy]
     C --> H[Admin/Analytics - Lazy]
-    
+
     D --> I[React/React-DOM]
     D --> J[Stripe SDK]
     D --> K[Radix UI Core]
     D --> L[Particles Engine]
-    
+
     G --> M[Payment Components]
     G --> N[Currency Components]
     G --> O[Success Modal]
@@ -54,15 +54,15 @@ graph LR
     A[Bundle Strategy] --> B[Entry Chunks]
     A --> C[Vendor Chunks]
     A --> D[Dynamic Chunks]
-    
+
     B --> E[index.html]
     B --> F[main.tsx]
-    
+
     C --> G[react-vendor]
     C --> H[stripe-vendor]
     C --> I[ui-vendor]
     C --> J[particles-vendor]
-    
+
     D --> K[payment-interface]
     D --> L[admin-components]
     D --> M[chart-components]
@@ -127,10 +127,10 @@ export default defineConfig({
         manualChunks: {
           // Core framework
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          
+
           // Payment processing
           'stripe-vendor': ['@stripe/stripe-js', '@stripe/react-stripe-js'],
-          
+
           // UI components (split by usage frequency)
           'ui-core': [
             '@radix-ui/react-slot',
@@ -142,13 +142,13 @@ export default defineConfig({
             '@radix-ui/react-carousel',
             '@radix-ui/react-navigation-menu'
           ],
-          
+
           // Visual effects
           'particles-vendor': ['@tsparticles/react', '@tsparticles/slim'],
-          
+
           // Forms and validation
           'form-vendor': ['react-hook-form', '@hookform/resolvers', 'zod'],
-          
+
           // Charts and analytics
           'chart-vendor': ['recharts']
         },
@@ -196,17 +196,17 @@ sequenceDiagram
     participant P as Payment Interface
     participant S as Stripe SDK
     participant UI as UI Components
-    
+
     U->>A: Initial Page Load
     A->>U: Core App (< 200KB)
-    
+
     U->>A: Navigate to Payment
     A->>P: Lazy Load Payment Interface
     P->>S: Load Stripe SDK
     P->>UI: Load Payment UI Components
-    
+
     UI->>U: Payment Interface Ready
-    
+
     Note over A,UI: Only load what's needed
 ```
 
@@ -253,7 +253,7 @@ import { Button } from '@radix-ui/react-button'
 // Load components based on feature flags
 const shouldLoadAnalytics = useFeatureFlag('analytics')
 
-const AnalyticsComponent = shouldLoadAnalytics 
+const AnalyticsComponent = shouldLoadAnalytics
   ? lazy(() => import('./Analytics'))
   : () => null
 ```
@@ -312,7 +312,7 @@ const bundleSizeTest = () => {
     'vendor': 500 * 1024,    // 500KB total
     'chunks': 100 * 1024     // 100KB per chunk
   }
-  
+
   // Fail build if limits exceeded
   validateBundleSizes(sizeLimit)
 }
@@ -327,7 +327,7 @@ describe('Code Splitting', () => {
   it('should lazy load payment interface', async () => {
     render(<App />)
     fireEvent.click(screen.getByText('Donate'))
-    
+
     await waitFor(() => {
       expect(screen.getByTestId('payment-interface')).toBeInTheDocument()
     })

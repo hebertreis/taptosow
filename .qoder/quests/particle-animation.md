@@ -29,12 +29,12 @@ graph TD
     B --> C[tsParticles Engine]
     C --> D[Emitter Configuration]
     D --> E[Particle Instances]
-    
+
     F[useCurrencyPersistence Hook] --> B
     G[ApplePayStyleOptions] --> C
     H[GlowEffectGenerator] --> G
     I[WobbleMotionController] --> G
-    
+
     J[Animation States] --> K[Static Idle]
     J --> L[Payment Transfer Effect]
     J --> M[Fade Out Completion]
@@ -121,13 +121,13 @@ stateDiagram-v2
     Completing --> Idle : Animation Complete
     Idle --> Cleanup : Component Unmount
     Cleanup --> [*]
-    
+
     note right of TransferEffect
         Apple Pay style:
         Bottom emission
         Soft glow effect
     end note
-    
+
     note right of ParticleRising
         Wobble motion
         Gradient fade
@@ -144,13 +144,13 @@ function createApplePayParticleOptions(
   animationConfig?: CurrencyAnimationConfig
 ): IOptions {
   const emissionRate = Math.max(50, Math.min(300, Math.floor(intensity * 3)));
-  
+
   return {
     fullScreen: { enable: false },
     background: { color: { value: "transparent" } },
     fpsLimit: 60,
     detectRetina: true,
-    
+
     emitters: {
       position: {
         x: 50, // Center horizontally
@@ -169,13 +169,13 @@ function createApplePayParticleOptions(
         delay: 0.2
       }
     },
-    
+
     particles: {
       number: { value: 0 }, // Controlled by emitter
-      color: { 
+      color: {
         value: ["#ffffff", "#e3f2fd", "#bbdefb"] // White to light blue
       },
-      shape: { 
+      shape: {
         type: "circle"
       },
       opacity: {
@@ -188,7 +188,7 @@ function createApplePayParticleOptions(
           destroy: "min"
         }
       },
-      size: { 
+      size: {
         value: { min: 1, max: 3 }, // Small circles 1-3px
         animation: {
           enable: true,
@@ -204,7 +204,7 @@ function createApplePayParticleOptions(
         random: false,
         straight: false, // Allow wobble
         outModes: { default: "destroy" },
-        
+
         // Wobble effect using path
         path: {
           enable: true,
@@ -217,7 +217,7 @@ function createApplePayParticleOptions(
           }
         }
       },
-      
+
       // Glow effect
       shadow: {
         enable: true,
@@ -228,14 +228,14 @@ function createApplePayParticleOptions(
           y: 0
         }
       },
-      
+
       // Trail effect
       trail: {
         enable: true,
         length: 3,
         fillColor: "#ffffff"
       },
-      
+
       // Fade out as particles reach top
       destroy: {
         mode: "split",
@@ -249,10 +249,10 @@ function createApplePayParticleOptions(
           }
         }
       },
-      
+
       links: { enable: false }
     },
-    
+
     // Destination glow effect overlay
     interactivity: {
       detectsOn: "canvas",
@@ -272,11 +272,11 @@ function createIdleStateOptions(): IOptions {
     background: { color: { value: "transparent" } },
     fpsLimit: 60,
     detectRetina: true,
-    
+
     particles: {
       number: { value: 0 }, // No particles in idle state
     },
-    
+
     emitters: [] // No active emitters
   };
 }
@@ -312,14 +312,14 @@ function createDestinationGlow(
     opacity: 0;
     transition: opacity 0.3s ease-in-out;
   `;
-  
+
   container.appendChild(glowElement);
-  
+
   // Animate glow appearance
   requestAnimationFrame(() => {
     glowElement.style.opacity = '1';
   });
-  
+
   // Remove after animation
   setTimeout(() => {
     glowElement.style.opacity = '0';
@@ -335,22 +335,22 @@ class WobblePathGenerator implements IPathGenerator {
     const wobbleAmplitude = 20; // pixels
     const wobbleSpeed = 0.05; // radians per frame
     const time = particle.life.time;
-    
+
     // Apply sine wave wobble to X position
     const wobbleOffset = Math.sin(time * wobbleSpeed) * wobbleAmplitude;
-    
+
     particle.position.x += wobbleOffset * 0.1; // Smooth application
-    
+
     // Optional: Add some randomness for more organic feel
     if (Math.random() < 0.1) {
       particle.position.x += (Math.random() - 0.5) * 5;
     }
   }
-  
+
   init(): void {
     // Initialize path generator
   }
-  
+
   update(): void {
     // Update path parameters if needed
   }
@@ -361,7 +361,7 @@ tsParticles.addPathGenerator("pathWobble", new WobblePathGenerator());
 ```
   const temp = kelvin / 100;
   let red, green, blue;
-  
+
   // Calculate red component
   if (temp <= 66) {
     red = 255;
@@ -370,7 +370,7 @@ tsParticles.addPathGenerator("pathWobble", new WobblePathGenerator());
     red = 329.698727446 * Math.pow(red, -0.1332047592);
     red = Math.max(0, Math.min(255, red));
   }
-  
+
   // Calculate green component
   if (temp <= 66) {
     green = temp;
@@ -380,7 +380,7 @@ tsParticles.addPathGenerator("pathWobble", new WobblePathGenerator());
     green = 288.1221695283 * Math.pow(green, -0.0755148492);
   }
   green = Math.max(0, Math.min(255, green));
-  
+
   // Calculate blue component
   if (temp >= 66) {
     blue = 255;
@@ -391,19 +391,19 @@ tsParticles.addPathGenerator("pathWobble", new WobblePathGenerator());
     blue = 138.5177312231 * Math.log(blue) - 305.0447927307;
     blue = Math.max(0, Math.min(255, blue));
   }
-  
+
   // Convert to hex
   const r = Math.round(red).toString(16).padStart(2, '0');
   const g = Math.round(green).toString(16).padStart(2, '0');
   const b = Math.round(blue).toString(16).padStart(2, '0');
-  
+
   return `#${r}${g}${b}`;
 }
 
 // Predefined temperature colors for performance
 const TEMPERATURE_COLORS = {
   6000: '#ffffff', // Cool white
-  5500: '#fff3e0', 
+  5500: '#fff3e0',
   5000: '#ffe4b5',
   4500: '#ffd4a3',
   4000: '#ffc18a',
@@ -413,8 +413,8 @@ const TEMPERATURE_COLORS = {
 
 #### Apple Pay Style ParticleBackground Implementation
 ```typescript
-export const ParticleBackground = ({ 
-  intensity = 20, 
+export const ParticleBackground = ({
+  intensity = 20,
   isPaymentFlow = false,
   animationConfig,
   onAnimationComplete
@@ -422,17 +422,17 @@ export const ParticleBackground = ({
   const [particlesEngine, setParticlesEngine] = useState<Engine | null>(null);
   const [animationPhase, setAnimationPhase] = useState<'idle' | 'transferring'>('idle');
   const containerRef = useRef<HTMLDivElement>(null);
-  
+
   const init = useCallback(async (engine: Engine) => {
     const { loadFull } = await import("tsparticles");
     await loadFull(engine);
-    
+
     // Register custom wobble path generator
     engine.addPathGenerator("pathWobble", new WobblePathGenerator());
-    
+
     setParticlesEngine(engine);
   }, []);
-  
+
   // Generate options based on current animation phase
   const options = useMemo(() => {
     if (animationPhase === 'transferring') {
@@ -440,35 +440,35 @@ export const ParticleBackground = ({
     }
     return createIdleStateOptions();
   }, [intensity, animationConfig, animationPhase]);
-  
+
   // Handle payment flow trigger
   useEffect(() => {
     if (isPaymentFlow && animationPhase === 'idle') {
       // Start Apple Pay transfer animation
       setAnimationPhase('transferring');
-      
+
       // Create destination glow effect
       if (containerRef.current) {
         createDestinationGlow(containerRef.current, intensity);
       }
-      
+
       // Complete animation and reset after transfer duration
       const transferTimer = setTimeout(() => {
         setAnimationPhase('idle');
         onAnimationComplete?.();
       }, 2000); // 2 second transfer effect
-      
+
       return () => clearTimeout(transferTimer);
     }
   }, [isPaymentFlow, animationPhase, onAnimationComplete, intensity]);
-  
+
   return (
     <div ref={containerRef} className="fixed inset-0 pointer-events-none">
-      <Particles 
-        id="apple-pay-particles" 
-        init={init} 
-        options={options} 
-        className="w-full h-full" 
+      <Particles
+        id="apple-pay-particles"
+        init={init}
+        options={options}
+        className="w-full h-full"
       />
     </div>
   );
@@ -500,7 +500,7 @@ const riverFlowTimeline = anime.timeline({
 
 particles.forEach((particle, index) => {
   const path = calculateRiverPaths([particle])[0];
-  
+
   // Stage 1: Converge to center with color transition
   riverFlowTimeline.add({
     targets: particle.element,
@@ -519,7 +519,7 @@ particles.forEach((particle, index) => {
     easing: path.easing.converge,
     delay: path.stageOneDelay
   }, path.stageOneDelay);
-  
+
   // Stage 2: Flow to top
   riverFlowTimeline.add({
     targets: particle.element,
@@ -573,12 +573,12 @@ const currencyConfigs: Record<string, CurrencyAnimationConfig> = {
 ### Dynamic Color Application
 ```typescript
 function applyParticleColors(
-  particle: HTMLElement, 
+  particle: HTMLElement,
   config: CurrencyAnimationConfig
 ): void {
   const colors = [config.primaryColor, config.secondaryColor];
   const selectedColor = colors[Math.floor(Math.random() * colors.length)];
-  
+
   particle.style.backgroundColor = selectedColor;
   particle.style.boxShadow = `0 0 ${particle.offsetWidth}px ${selectedColor}40`;
 }
@@ -594,7 +594,7 @@ function applyParticleColors(
 const handlePaymentMethodClick = (method: string) => {
   // Trigger particle animation before payment processing
   onPaymentMethodSelect?.(method);
-  
+
   // Animation flows towards payment processing
   setIsPaymentFlow(true);
 };
@@ -623,7 +623,7 @@ function calculateOptimalParticleCount(
   const intensityMultiplier = intensity / 100;
   const screenArea = screenSize.width * screenSize.height;
   const densityFactor = Math.min(1, screenArea / (1920 * 1080));
-  
+
   return Math.min(
     150, // Maximum particles for performance
     Math.max(
@@ -639,10 +639,10 @@ function calculateOptimalParticleCount(
 function cleanupParticleEngine(engine: Engine | null): void {
   if (engine) {
     // Stop all particle animations
-    const container = engine.dom().find(container => 
+    const container = engine.dom().find(container =>
       container.id === 'enhanced-particles'
     );
-    
+
     if (container) {
       container.destroy();
     }
@@ -681,21 +681,21 @@ describe('ParticleBackground', () => {
     const { rerender } = render(
       <ParticleBackground isPaymentFlow={false} onAnimationComplete={onComplete} />
     );
-    
+
     rerender(
       <ParticleBackground isPaymentFlow={true} onAnimationComplete={onComplete} />
     );
-    
+
     // Wait for animation phases to complete
     await waitFor(() => {
       expect(onComplete).toHaveBeenCalled();
     }, { timeout: 4000 });
   });
-  
+
   it('applies correct color temperature during animation phases', () => {
     const { rerender } = render(<ParticleBackground isPaymentFlow={false} />);
     // Verify cool white (6000K) particles
-    
+
     rerender(<ParticleBackground isPaymentFlow={true} />);
     // Verify warm color (3500K) transition
   });
@@ -710,20 +710,20 @@ describe('tsParticles Animation Phases', () => {
     expect(options.particles.move.direction).toBe('none');
     expect(options.particles.move.random).toBe(true);
   });
-  
+
   it('configures convergence animation correctly', () => {
     const baseOptions = createBaseParticleOptions(50);
     const convergenceOptions = createConvergenceOptions(baseOptions, 3500);
-    
+
     expect(convergenceOptions.particles.move.attract.enable).toBe(true);
     expect(convergenceOptions.particles.move.center).toBeDefined();
     expect(convergenceOptions.particles.life.duration.value).toBe(2);
   });
-  
+
   it('configures flow animation correctly', () => {
     const baseOptions = createBaseParticleOptions(50);
     const flowOptions = createFlowOptions(baseOptions, 3500);
-    
+
     expect(flowOptions.particles.move.direction).toBe('top');
     expect(flowOptions.particles.move.straight).toBe(true);
     expect(flowOptions.particles.opacity.animation.destroy).toBe('min');

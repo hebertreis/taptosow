@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tag Upsert Admin</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        select, input { width: 100%; padding: 8px; box-sizing: border-box; }
+        #reader { width: 100%; border: 1px solid #ccc; margin-top: 20px; }
+        #status { margin-top: 20px; padding: 10px; border-radius: 5px; display: none; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; }
+        button:disabled { background: #ccc; }
+    </style>
+</head>
+<body>
+    <h1>Tag Setup Admin</h1>
+
+    <div class="form-group">
+        <label for="tenantSelect">Select Tenant</label>
+        <select id="tenantSelect">
+            <option value="">-- Select a Tenant --</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label for="sectorSelect">Select Sector</label>
+        <select id="sectorSelect">
+            <option value="">-- Select a Sector --</option>
+            <option value="NEW">-- Create New Sector --</option>
+        </select>
+    </div>
+
+    <div id="newSectorGroup" class="form-group" style="display:none;">
+        <label for="newSectorInput">New Sector Name/ID</label>
+        <input type="text" id="newSectorInput" placeholder="Enter sector ID">
+    </div>
+
+    <button id="startScan">Start QR Scanner</button>
+
+    <div id="reader"></div>
+
+    <div id="status"></div>
+
+    <script>
+        let db;
+        const statusEl = document.getElementById('status');
+        const tenantSelect = document.getElementById('tenantSelect');
+        const sectorSelect = document.getElementById('sectorSelect');
+        const newSectorGroup = document.getElementById('newSectorGroup');
+        const newSectorInput = document.getElementById('newSectorInput');
+
+        function showStatus(msg, type) {
+            statusEl.textContent = msg;
+            statusEl.className = type;
+            statusEl.style.display = 'block';
+        }
+
+        async function init() {
+            try {
+                const response = await fetch('/__/firebase/init.json');
+                const config = await response.json();
+                firebase.initializeApp(config);
+                db = firebase.firestore();
+                loadTenants();
+            } catch (e) {
+                console.error("Firebase init error", e);
+                showStatus("Failed to initialize Firebase. Are you running via Firebase Hosting?", "error");
+            }
+        }
+
+        async function loadTenants() {
+            try {
+                const snapshot = await db.collection('tenants').get();
+                if (snapshot.empty) {
+                    const option = document.createElement('option');
+                    option.value = "default_tenant";
+                    option.textContent = "Default Tenant (Auto-created)";
+                    tenantSelect.appendChild(option);
+                }
+                snapshot.forEach(doc => {
+                    const option = document.createElement('option');
+                    option.value = doc.id;
+                    option.textContent = doc.data().name || doc.id;
+                    option.dataset.fallback = doc.data().fallbackUrl || '/';
+                    tenantSelect.appendChild(option);
+                });
+            } catch (e) {
+                console.error("Error loading tenants", e);
+            }
+        }
+
+        tenantSelect.addEventListener('change', async () => {
+            const tenantId = tenantSelect.value;
+            sectorSelect.innerHTML = '<option value="">-- Select a Sector --</option><option value="NEW">-- Create New Sector --</option>';
+            if (!tenantId) return;
+
+            try {
+                const snapshot = await db.collection('tenants').doc(tenantId).collection('sectors').get();
+                snapshot.forEach(doc => {
+                    const option = document.createElement('option');
+                    option.value = doc.id;
+                    option.textContent = doc.data().name || doc.id;
+                    sectorSelect.appendChild(option);
+                });
+            } catch (e) {
+                console.error("Error loading sectors", e);
+            }
+        });
+
+        sectorSelect.addEventListener('change', () => {
+            newSectorGroup.style.display = sectorSelect.value === 'NEW' ? 'block' : 'none';
+        });
+
+        const html5QrCode = new Html5Qrcode("reader");
+        const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+            const tagIdMatch = decodedText.match(/\/a\/([a-zA-Z0-9]+)/);
+            if (tagIdMatch) {
+                const tagId = tagIdMatch[1];
+                html5QrCode.stop().then(() => {
+                    upsertTag(tagId);
+                });
+            } else {
+                showStatus("Invalid QR Code format. Expected onetapgo.site/a/TAG_ID", "error");
+            }
+        };
+
+        async function upsertTag(tagId) {
+            const tenantId = tenantSelect.value;
+            let sectorId = sectorSelect.value;
+
+            if (!tenantId) {
+                showStatus("Please select a tenant first", "error");
+                return;
+            }
+
+            if (sectorId === 'NEW') {
+                sectorId = newSectorInput.value.trim();
+                if (!sectorId) {
+                    showStatus("Please enter a new sector ID", "error");
+                    return;
+                }
+                await db.collection('tenants').doc(tenantId).collection('sectors').doc(sectorId).set({
+                    name: sectorId,
+                    created_at: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+            }
+
+            if (!sectorId) {
+                showStatus("Please select or create a sector", "error");
+                return;
+            }
+
+            const selectedOption = tenantSelect.options[tenantSelect.selectedIndex];
+            const fallbackUrl = selectedOption.dataset.fallback || '/';
+
+            try {
+                const tagRef = db.collection('tags').doc(tagId);
+                const tagDoc = await tagRef.get();
+                const now = firebase.firestore.FieldValue.serverTimestamp();
+
+                const data = {
+                    tenant: tenantId,
+                    sectorId: sectorId,
+                    url: fallbackUrl,
+                    updated_at: now
+                };
+
+                if (!tagDoc.exists) {
+                    data.created_at = now;
+                    data.access_count = 0;
+                    data.slug = "";
+                }
+
+                await tagRef.set(data, { merge: true });
+                showStatus(`Tag ${tagId} successfully registered!`, "success");
+            } catch (e) {
+                console.error("Error upserting tag", e);
+                showStatus("Error saving tag: " + e.message, "error");
+            }
+        }
+
+        document.getElementById('startScan').addEventListener('click', () => {
+            if (!tenantSelect.value) {
+                alert("Please select a tenant first");
+                return;
+            }
+            statusEl.style.display = 'none';
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                qrCodeSuccessCallback
+            ).catch(err => {
+                showStatus("Error starting scanner: " + err, "error");
+            });
+        });
+
+        init();
+    </script>
+</body>
+</html>

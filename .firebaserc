@@ -1,22 +1,5 @@
 {
   "projects": {
-    "default": "taptosow-staging",
-    "wasser": "wasser-c430a"
-  },
-  "targets": {
-    "wasser-c430a": {
-      "hosting": {
-        "cre8onetapgo": [
-          "cre8onetapgo"
-        ],
-        "wasser-c430a": [
-          "wasser-c430a"
-        ],
-        "rampdmv": [
-          "rampdmv"
-        ]
-      }
-    }
-  },
-  "etags": {}
+    "default": "taptosow-staging"
+  }
 }

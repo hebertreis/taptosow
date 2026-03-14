@@ -19,18 +19,18 @@
 </head>
 <body>
     <h1>🔧 Stripe Integration Test</h1>
-    
+
     <div class="test-section">
         <h2>Configuration Status</h2>
         <div id="config-status"></div>
     </div>
-    
+
     <div class="test-section">
         <h2>Function Test</h2>
         <button onclick="testFunction()">Test Firebase Function</button>
         <div id="function-status"></div>
     </div>
-    
+
     <div class="test-section">
         <h2>Setup Instructions</h2>
         <div class="info">
@@ -57,7 +57,7 @@
         function checkConfig() {
             const configDiv = document.getElementById('config-status');
             const currentKey = window.__STRIPE_PUBLIC_KEY__ || 'pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG'; // This should match your actual config
-            
+
             if (currentKey === 'pk_test_51OcBVaGmR8MQBnbEArG1YZCQD3Cd5hN7X5m6mv3XltRXNW4jIYHa3uGEVWeQ10niXeQNeJWXDTssOY00d8IahGXR00SQAnL7UG') {
                 configDiv.innerHTML = '<div class="warning">⚠️ Stripe publishable key not configured</div>';
                 return false;
@@ -77,7 +77,7 @@
         async function testFunction() {
             const statusDiv = document.getElementById('function-status');
             statusDiv.innerHTML = '<div class="info">🔄 Testing function...</div>';
-            
+
             try {
                 const response = await fetch('/createPaymentIntent', {
                     method: 'POST',
@@ -86,9 +86,9 @@
                     },
                     body: JSON.stringify({ amount: 1.00 }),
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (response.ok && data.clientSecret) {
                     statusDiv.innerHTML = '<div class="success">✅ Function working correctly!</div>';
                 } else if (data.error) {

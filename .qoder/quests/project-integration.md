@@ -43,28 +43,28 @@ graph TB
         B --> D[Currency Selector]
         B --> E[Status Management]
     end
-    
+
     subgraph "Build & Deploy"
         F[Vite Build] --> G[Static Assets]
         G --> H[Firebase Hosting]
     end
-    
+
     subgraph "Backend Layer"
         I[Firebase Functions v2] --> J[Stripe API]
         I --> K[Secret Manager]
     end
-    
+
     subgraph "Payment Processing"
         L[Stripe Elements] --> M[Apple Pay]
         L --> N[Google Pay]
         L --> O[Credit Cards]
         L --> P[PIX Brazil]
     end
-    
+
     A --> H
     H --> I
     C --> L
-    
+
     style A fill:#e1f5fe
     style I fill:#f3e5f5
     style L fill:#e8f5e8
@@ -81,32 +81,32 @@ graph LR
         A --> E[PaymentStatus]
         A --> F[ParticleBackground]
     end
-    
+
     subgraph "Animation Layer"
         F --> G[AnimeJS Engine]
         F --> H[TSParticles]
         G --> I[Dynamic Animations]
         H --> J[Background Effects]
     end
-    
+
     subgraph "Payment Integration"
         K[StripeProvider] --> L[PaymentElements]
         L --> M[PaymentRequestButton]
         L --> N[CardElement]
         L --> O[PIXElement]
     end
-    
+
     subgraph "State Management"
         P[useCurrencyPersistence] --> Q[Currency State]
         R[usePaymentState] --> S[Payment Flow]
         T[useStripeIntegration] --> U[Stripe Elements]
         V[useParticleAnimation] --> W[Animation State]
     end
-    
+
     A --> K
     D --> L
     F --> V
-    
+
     style A fill:#bbdefb
     style K fill:#c8e6c9
     style P fill:#fff3e0
@@ -169,31 +169,31 @@ sequenceDiagram
     participant PE as PaymentElements
     participant API as Firebase Function
     participant Stripe as Stripe API
-    
+
     User->>UI: Load application
     UI->>PB: Initialize particles
     PB->>Anime: Setup base animation
-    
+
     User->>UI: Enter amount
     UI->>PB: Update intensity
     PB->>Anime: Animate particle intensity
-    
+
     User->>UI: Select currency
     UI->>PB: Change color theme
     PB->>Anime: Transition particle colors
-    
+
     UI->>SP: Initialize with publishable key
     SP->>PE: Create Elements instance
     User->>PE: Select payment method
     PE->>PB: Trigger processing animation
-    
+
     PE->>API: Create payment intent
     API->>Stripe: Process payment
     Stripe-->>API: Return client secret
     API-->>PE: Payment intent response
     PE->>Stripe: Confirm payment
     Stripe-->>PE: Payment result
-    
+
     alt Success
         PE->>PB: Trigger success animation
         PB->>Anime: Celebration effect
@@ -201,7 +201,7 @@ sequenceDiagram
         PE->>PB: Trigger error animation
         PB->>Anime: Fade effect
     end
-    
+
     PE-->>UI: Update status
 ```
 
@@ -438,7 +438,7 @@ sequenceDiagram
     participant Stripe as Stripe Elements
     participant Function as Firebase Function
     participant StripeAPI as Stripe API
-    
+
     User->>React: Enter amount & select currency
     User->>React: Choose payment method
     React->>Function: POST /createPaymentIntent
@@ -446,7 +446,7 @@ sequenceDiagram
     StripeAPI-->>Function: Return client_secret
     Function-->>React: Payment intent response
     React->>Stripe: Initialize payment method
-    
+
     alt Apple Pay / Google Pay
         Stripe->>StripeAPI: Process digital wallet
     else Credit Card
@@ -455,7 +455,7 @@ sequenceDiagram
         Stripe->>StripeAPI: Generate PIX code
         React->>User: Display PIX QR code
     end
-    
+
     StripeAPI-->>Stripe: Payment result
     Stripe-->>React: Success/Error status
     React->>User: Show success modal or error
@@ -494,7 +494,7 @@ stateDiagram-v2
     Success --> AmountEntry : New Donation
     Error --> PaymentSelection : Try Again
     Error --> AmountEntry : Cancel
-    
+
     state Processing {
         [*] --> Validating
         Validating --> CreatingIntent
@@ -596,7 +596,7 @@ graph TB
         B --> D[UI Element Animations]
         C --> E[Background Particles]
     end
-    
+
     subgraph "Animation Triggers"
         F[Amount Input] --> G[Intensity Change]
         H[Currency Selection] --> I[Color Transition]
@@ -604,23 +604,23 @@ graph TB
         L[Payment Success] --> M[Celebration Burst]
         N[Payment Error] --> O[Error Fade]
     end
-    
+
     subgraph "Performance Optimization"
         P[Canvas Rendering] --> Q[GPU Acceleration]
         R[Animation Pooling] --> S[Memory Management]
         T[Frame Rate Control] --> U[Battery Optimization]
     end
-    
+
     G --> A
     I --> A
     K --> A
     M --> A
     O --> A
-    
+
     A --> P
     A --> R
     A --> T
-    
+
     style A fill:#e1bee7
     style B fill:#ffcdd2
     style C fill:#c8e6c9
@@ -713,11 +713,11 @@ const useParticleAnimation = (): UseParticleAnimation => {
   const [intensity, setIntensity] = useState(10);
   const [currentEffect, setCurrentEffect] = useState('idle');
   const [isAnimating, setIsAnimating] = useState(true);
-  
+
   const triggerEffect = useCallback((effect: AnimationEffect) => {
     setCurrentEffect(effect.name);
     setIsAnimating(true);
-    
+
     // Auto-reset after effect duration
     if (effect.duration) {
       setTimeout(() => {
@@ -725,7 +725,7 @@ const useParticleAnimation = (): UseParticleAnimation => {
       }, effect.duration);
     }
   }, []);
-  
+
   return {
     intensity,
     setIntensity,

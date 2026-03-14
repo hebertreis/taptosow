@@ -103,11 +103,11 @@ const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 ### Function Declaration Changes
 ```javascript
 exports.createPaymentIntent = onRequest(
-  { 
+  {
     cors: true,
     maxInstances: 10,
     secrets: [stripeSecretKey] // ← NEW: Make secret available
-  }, 
+  },
   async (req, res) => {
     // ...
   }
@@ -207,12 +207,12 @@ STRIPE_SECRET_KEY=sk_test_your_key_here
 
 ## 🎉 Benefits of Migration
 
-✅ **Enhanced Security**: Secrets stored in Google Secret Manager  
-✅ **Future-Proof**: Compatible with Firebase Functions v2  
-✅ **Better Error Handling**: Deploy-time validation  
-✅ **Audit Trail**: Full logging of secret access  
-✅ **Fine-Grained Access**: IAM-based permissions  
-✅ **Version Control**: Secret versioning and rotation  
+✅ **Enhanced Security**: Secrets stored in Google Secret Manager
+✅ **Future-Proof**: Compatible with Firebase Functions v2
+✅ **Better Error Handling**: Deploy-time validation
+✅ **Audit Trail**: Full logging of secret access
+✅ **Fine-Grained Access**: IAM-based permissions
+✅ **Version Control**: Secret versioning and rotation
 
 ---
 

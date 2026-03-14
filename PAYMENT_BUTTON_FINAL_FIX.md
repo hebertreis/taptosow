@@ -24,11 +24,11 @@ function destroyPaymentRequest() {
         }
         prButton = null;
     }
-    
+
     // Clear payment request and state
     paymentRequest = null;
     isPaymentRequestMounted = false;
-    
+
     // Clear DOM container
     const walletContainer = document.getElementById('wallet-button');
     if (walletContainer) {
@@ -78,7 +78,7 @@ document.getElementById('amount').addEventListener('input', function() {
 
 All scenarios now work without errors:
 - ✅ Change amount using preset buttons
-- ✅ Change amount using input field  
+- ✅ Change amount using input field
 - ✅ Change currency selection multiple times
 - ✅ Complete payment and reset form
 - ✅ Use success modal and restart
