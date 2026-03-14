@@ -21,8 +21,95 @@ const coraCert = defineSecret("CORA_CERT");
 const coraKey = defineSecret("CORA_KEY");
 const coraClientId = defineSecret("CORA_CLIENT_ID");
 
+// 🔐 SECURE: Define PagBank secrets
+const pagbankToken = defineSecret("PAGBANK_TOKEN");
+
 const CoraClient = require('./src/cora');
 const { seedTenants } = require('./src/seedTenants');
+
+// --- PAGBANK GOOGLE PAY FUNCTION ---
+exports.createPagBankOrder = onRequest(
+  {
+    cors: true,
+    maxInstances: 3,
+    secrets: [pagbankToken]
+  },
+  async (req, res) => {
+    // CORS headers
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    try {
+      const { amount, googlePayToken, customer, referenceId } = req.body;
+      const token = pagbankToken.value();
+
+      if (!token) {
+        logger.error('PagBank token not configured');
+        return res.status(500).json({ error: 'PagBank configuration missing' });
+      }
+
+      const axios = require('axios');
+      const isSandbox = true; // Set to false for production
+      const baseUrl = isSandbox ? 'https://sandbox.api.pagseguro.com' : 'https://api.pagseguro.com';
+
+      const orderPayload = {
+        reference_id: referenceId || `order-${Date.now()}`,
+        customer: {
+          name: customer?.name || "Pagador IARCA",
+          email: customer?.email || "contato@iarca.org",
+          tax_id:  "33586973802", //customer?.document?.replace(/\D/g, '') || remover meu CPF e colocar um genérico
+          phones: [{ country: "55", area: "11", number: "999999999", type: "MOBILE" }]
+        },
+        items: [{
+          name: "Doação IARCA Church",
+          quantity: 1,
+          unit_amount: Math.round(amount * 100)
+        }],
+        charges: [{
+          reference_id: `charge-${Date.now()}`,
+          amount: { value: Math.round(amount * 100), currency: "BRL" },
+          payment_method: {
+            type: "CREDIT_CARD",
+            installments: 1,
+            capture: true,
+            card: {
+              wallet: {
+                type: "GOOGLE_PAY",
+                key: googlePayToken
+              }
+            }
+          }
+        }]
+      };
+
+      logger.info('Sending order to PagBank', { referenceId: orderPayload.reference_id });
+
+      const response = await axios.post(`${baseUrl}/orders`, orderPayload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      logger.info('PagBank response success', { orderId: response.data.id });
+      res.json(response.data);
+
+    } catch (error) {
+      const errorData = error.response?.data || error.message;
+      logger.error('Error creating PagBank order:', errorData);
+      res.status(500).json({
+        error: 'Failed to process PagBank payment',
+        details: errorData
+      });
+    }
+  }
+);
 
 // --- NEW LOGGING FUNCTION ---
 exports.logEvent = onRequest({ cors: true, maxInstances: 10 }, async (req, res) => {
@@ -468,24 +555,25 @@ exports.getStripePublicKey = onRequest(
 
     try {
       const db = admin.firestore();
-      const domain = req.get('Origin') || req.get('Referer') || '';
-      logger.info('getStripePublicKey called from domain:', domain);
+      const domain = req.get('Origin') || req.get('Referer') || ''; // Re-added domain declaration
+      const uri = req.path || ''; // Get URI from req.path
+      logger.info('getStripePublicKey called from domain:', domain, 'and URI:', uri);
 
       let tenantSlug = 'default'; // Default tenant
 
-      // Determine tenant based on domain
+      // Determine tenant based on domain or URI
       // This logic should mirror the one in createPaymentIntent for consistency
-      if (domain.includes('rampchurchdmv.onetapgo.site') || domain.includes('rampdmv.web.app')) {
+      if (domain.includes('rampchurchdmv.onetapgo.site') || domain.includes('rampdmv.web.app') || uri.includes('/rampchurchdmv')) {
         tenantSlug = 'rampchurchdmv';
-      } else if (domain.includes('cre8.onetapgo.site') || domain.includes('rcsp.onetapgo.site') || domain.includes('wasser-c430a.web.app')) {
+      } else if (domain.includes('cre8.onetapgo.site') || domain.includes('rcsp.onetapgo.site') || domain.includes('wasser-c430a.web.app') || uri.includes('/cre8onetapgo')) {
         tenantSlug = 'cre8onetapgo';
-      } else if (domain.includes('bsyym.onetapgo.site') || domain.includes('bishopyounger.com')) {
+      } else if (domain.includes('bsyym.onetapgo.site') || domain.includes('bishopyounger.com') || uri.includes('/bishopsyyoungerministries')) {
         tenantSlug = 'bishopsyyoungerministries';
-      } else if (domain.includes('rampchurchsp.onetapgo.site') || domain.includes('rcsp.com.br')) {
+      } else if (domain.includes('rampchurchsp.onetapgo.site') || domain.includes('rcsp.com.br') || uri.includes('/rampchurchsp')) {
         tenantSlug = 'rampchurchsp';
-      } else if (domain.includes('syyounger.onetapgo.site')) {
+      } else if (domain.includes('syyounger.onetapgo.site') || uri.includes('/syyounger')) {
         tenantSlug = 'syyounger';
-      } else if (domain.includes('owci.onetapgo.site')) {
+      } else if (domain.includes('owci.onetapgo.site') || uri.includes('/onewaychurches')) {
         tenantSlug = 'onewaychurches';
       } else if (domain.includes('onetapgo.site')) {
         tenantSlug = 'default';
@@ -603,9 +691,25 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 if (tagDoc.exists) {
                     const tagData = tagDoc.data();
                     await tagDoc.ref.update({ scan_count: admin.firestore.FieldValue.increment(1) });
-                    const targetUrl = tagData.redirect_url || tagData.url;
+                    const targetUrl = [
+                        tagData.redirect_url,
+                        tagData.redirect_override,
+                        tagData.target_url,
+                        tagData.url,
+                        tagData.redirectUrl
+                    ].find((value) => typeof value === 'string' && value.trim().length > 0);
+
                     if (targetUrl) {
-                        return res.redirect(302, targetUrl);
+                        return res.redirect(302, targetUrl.trim());
+                    }
+
+                    const clientSlug = tagData.client_slug || tagData.clientSlug;
+                    if (clientSlug) {
+                        const clientDoc = await db.collection('clients').doc(clientSlug).get();
+                        const clientBaseUrl = clientDoc.data()?.base_url;
+                        if (typeof clientBaseUrl === 'string' && clientBaseUrl.trim().length > 0) {
+                            return res.redirect(302, clientBaseUrl.trim());
+                        }
                     }
                 }
                 // If tag not found or has no URL, use fallback
@@ -673,3 +777,50 @@ exports.seedTenantsFunction = onRequest({ cors: true, maxInstances: 1 }, async (
     res.status(500).send(`Error seeding tenants: ${error.message}`);
   }
 });
+
+// Get Tenant details by slug
+exports.getTenantBySlug = onRequest(
+  {
+    cors: true,
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    try {
+      const slug = req.query.slug || req.body.slug;
+
+      if (!slug) {
+        logger.warn('getTenantBySlug: Missing slug parameter');
+        return res.status(400).json({ error: 'Slug is required' });
+      }
+
+      logger.info(`Fetching tenant details for slug: ${slug}`);
+      const db = admin.firestore();
+      const tenantDoc = await db.collection('tenants').doc(slug).get();
+
+      if (!tenantDoc.exists) {
+        logger.warn(`Tenant not found: ${slug}`);
+        return res.status(404).json({ error: 'Tenant not found' });
+      }
+
+      const tenantData = tenantDoc.data();
+      
+      return res.json({
+        success: true,
+        tenant: {
+          slug: slug,
+          ...tenantData
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error in getTenantBySlug:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+);
+
