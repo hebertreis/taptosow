@@ -636,6 +636,20 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
     const db = admin.firestore();
 
     try {
+    const addUtmParameters = (url, tagId, campaign) => {
+        if (!url) return url;
+        const timestamp = new Date().toISOString();
+        const utmParams = new URLSearchParams({
+            utm_source: "onetapgo",
+            utm_medium: "nfc",
+            utm_campaign: campaign || "fallback",
+            utm_content: tagId || "unknown",
+            utm_timestamp: timestamp
+        });
+
+        const joinChar = url.includes("?") ? "&" : "?";
+        return `${url.trim()}${joinChar}${utmParams.toString()}`;
+    };
         // 1. Handling Sync (?deviceId=...)
         if (path.includes('/sync')) {
             const { deviceId } = req.query;
@@ -650,6 +664,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 await deviceRef.set({ label: "Novo Dispositivo", config: defaultConfig }, { merge: true });
                 return res.json(defaultConfig);
             }
+
             return res.json(doc.data().config || {});
         }
 
@@ -691,6 +706,8 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 if (tagDoc.exists) {
                     const tagData = tagDoc.data();
                     await tagDoc.ref.update({ scan_count: admin.firestore.FieldValue.increment(1) });
+
+                    const clientSlug = tagData.client_slug || tagData.clientSlug || "fallback";
                     const targetUrl = [
                         tagData.redirect_url,
                         tagData.redirect_override,
@@ -700,22 +717,21 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                     ].find((value) => typeof value === 'string' && value.trim().length > 0);
 
                     if (targetUrl) {
-                        return res.redirect(302, targetUrl.trim());
+                        return res.redirect(302, addUtmParameters(targetUrl, id, clientSlug));
                     }
 
-                    const clientSlug = tagData.client_slug || tagData.clientSlug;
-                    if (clientSlug) {
+                    if (clientSlug && clientSlug !== "fallback") {
                         const clientDoc = await db.collection('clients').doc(clientSlug).get();
                         const clientBaseUrl = clientDoc.data()?.base_url;
                         if (typeof clientBaseUrl === 'string' && clientBaseUrl.trim().length > 0) {
-                            return res.redirect(302, clientBaseUrl.trim());
+                            return res.redirect(302, addUtmParameters(clientBaseUrl, id, clientSlug));
                         }
                     }
                 }
                 // If tag not found or has no URL, use fallback
                 const fallbackDoc = await db.doc('site_config/fallback').get();
                 const fallbackUrl = fallbackDoc.exists ? fallbackDoc.data().url : '/';
-                return res.redirect(302, fallbackUrl);
+                return res.redirect(302, addUtmParameters(fallbackUrl, id || "unknown", "fallback"));
 
             } else {
                 // Handle /a (same as old redirectAuto)
@@ -723,9 +739,9 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 if (doc.exists && doc.data().url) {
                     const { url, type } = doc.data();
                     const code = type === 301 ? 301 : 302;
-                    return res.redirect(code, url);
+                    return res.redirect(code, addUtmParameters(url, "auto_redirect", "fallback"));
                 }
-                return res.redirect(302, '/'); // Default fallback
+                return res.redirect(302, addUtmParameters('/', "auto_redirect", "fallback")); // Default fallback
             }
         }
 
