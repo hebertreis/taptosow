@@ -1,3 +1,4 @@
+const axios = require("axios");
 const { onRequest } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
@@ -824,3 +825,70 @@ exports.getTenantBySlug = onRequest(
   }
 );
 
+
+// --- FORM SUBMISSION HANDLER ---
+exports.submitForm = onRequest({ cors: true, maxInstances: 10 }, async (req, res) => {
+    // Handle CORS preflight
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+
+    if (req.method !== 'POST') {
+        res.status(405).send('Method Not Allowed');
+        return;
+    }
+
+    try {
+        const formData = req.body;
+        const db = admin.firestore();
+        const now = admin.firestore.FieldValue.serverTimestamp();
+
+        // Extract UTM parameters and origin URL
+        const utmParams = {};
+        const utmKeys = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content'];
+        utmKeys.forEach(key => {
+            if (formData[key]) {
+                utmParams[key] = formData[key];
+            }
+        });
+
+        const originUrl = formData.origin_url || req.get('Referer') || 'Unknown';
+
+        // Enrich data
+        const submissionData = {
+            ...formData,
+            utm_parameters: utmParams,
+            origin_url: originUrl,
+            server_timestamp: now,
+            ip_address: req.ip,
+            user_agent: req.get('User-Agent'),
+        };
+
+        // Save to Firestore
+        const docRef = await db.collection('form_submissions').add(submissionData);
+        logger.info(`Form submission saved with ID: ${docRef.id}`, { submissionData });
+
+        // Webhook notification if requested
+        const webhookUrl = formData.webhook_url || formData.webhook;
+        if (webhookUrl && typeof webhookUrl === 'string') {
+            try {
+                await axios.post(webhookUrl, submissionData);
+                logger.info(`Webhook sent successfully to: ${webhookUrl}`);
+            } catch (webhookError) {
+                logger.error(`Failed to send webhook to ${webhookUrl}:`, webhookError.message);
+                // We don't fail the response if the webhook fails, but we log it.
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            submission_id: docRef.id,
+            message: 'Submission received and saved.'
+        });
+
+    } catch (error) {
+        logger.error("Error in submitForm function:", error);
+        return res.status(500).json({ success: false, error: "Internal Server Error" });
+    }
+});
