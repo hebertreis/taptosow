@@ -14,7 +14,7 @@
   ],
   "hosting": 
     {
-      "public": "send-din-din/dist",
+      "public": "public",
       "ignore": [
         "firebase.json",
         "**/.*",
@@ -64,6 +64,10 @@
         {
           "source": "/go/**",
           "function": "iotRouter"
+        },
+        {
+          "source": "/submitForm",
+          "function": "submitForm"
         },
         {
           "source": "**",

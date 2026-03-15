@@ -2,5 +2,8 @@
   "dependencies": {
     "@tsparticles/plugin-absorbers": "^3.9.1",
     "firebase-functions": "^7.0.2"
+  },
+  "scripts": {
+    "build": "echo 'No build step required for root'"
   }
 }
