@@ -2,26 +2,301 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <title>Tag Upsert Admin</title>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: auto; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        select, input { width: 100%; padding: 8px; box-sizing: border-box; }
-        #reader { width: 100%; border: 1px solid #ccc; margin-top: 20px; }
-        #status { margin-top: 20px; padding: 10px; border-radius: 5px; display: none; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
-        button { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; }
-        button:disabled { background: #ccc; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            padding: 16px;
+            max-width: 600px;
+            margin: auto;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #1a1a1a;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+
+        #reader {
+            width: 100%;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 20px;
+            background: #000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        #reader video {
+            object-fit: cover;
+            border-radius: 12px;
+        }
+
+        .scan-container {
+            position: relative;
+            margin-top: 20px;
+        }
+
+        .scan-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 250px;
+            height: 250px;
+            border: 3px solid #00ff00;
+            border-radius: 12px;
+            pointer-events: none;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        .scan-line {
+            position: absolute;
+            width: 100%;
+            height: 2px;
+            background: #00ff00;
+            animation: scan 2s linear infinite;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            100% { top: 100%; }
+        }
+
+        button {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 16px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        button.stop {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+
+        .log-container {
+            margin-top: 20px;
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-header {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .log-header .count {
+            background: #007bff;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+
+        .log-list {
+            list-style: none;
+        }
+
+        .log-item {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-left: 4px solid #ccc;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .log-item.success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+
+        .log-item.error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+
+        .log-item.pending {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+
+        .log-item .status-icon {
+            font-size: 18px;
+            margin-right: 12px;
+            min-width: 24px;
+        }
+
+        .log-item .log-info {
+            flex: 1;
+            font-size: 14px;
+        }
+
+        .log-item .log-info .tag-id {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .log-item .log-info .log-time {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        .log-item .retry-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-left: 8px;
+        }
+
+        .clear-btn {
+            background: transparent;
+            border: 1px solid #ddd;
+            color: #666;
+            padding: 6px 12px;
+            font-size: 12px;
+            width: auto;
+            margin: 0;
+        }
+
+        .stats {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+        }
+
+        .stat-item {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            border-radius: 8px;
+            font-size: 12px;
+        }
+
+        .stat-item.success { background: #d4edda; color: #155724; }
+        .stat-item.error { background: #f8d7da; color: #721c24; }
+        .stat-item.pending { background: #fff3cd; color: #856404; }
+
+        .permission-prompt {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+            text-align: center;
+            display: none;
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 12px;
+            }
+            h1 {
+                font-size: 20px;
+            }
+            .scan-overlay {
+                width: 200px;
+                height: 200px;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Tag Setup Admin</h1>
+    <h1>📱 Tag Setup Admin</h1>
 
     <div class="form-group">
         <label for="tenantSelect">Select Tenant</label>
@@ -43,24 +318,149 @@
         <input type="text" id="newSectorInput" placeholder="Enter sector ID">
     </div>
 
-    <button id="startScan">Start QR Scanner</button>
+    <div class="scan-container">
+        <div id="reader"></div>
+        <div class="scan-overlay" style="display: none;">
+            <div class="scan-line"></div>
+        </div>
+    </div>
 
-    <div id="reader"></div>
+    <button id="startScanBtn">📷 Start QR Scanner</button>
 
-    <div id="status"></div>
+    <div class="permission-prompt" id="permissionPrompt">
+        <p>📷 Camera permission needed to scan QR codes</p>
+        <button onclick="requestCameraPermission()">Grant Permission</button>
+    </div>
+
+    <div class="log-container" id="logContainer" style="display: none;">
+        <div class="log-header">
+            <span>📋 Scan Log</span>
+            <span class="count" id="logCount">0</span>
+        </div>
+        <ul class="log-list" id="logList"></ul>
+        <div class="stats">
+            <div class="stat-item success" id="statSuccess">✅ 0</div>
+            <div class="stat-item pending" id="statPending">⏳ 0</div>
+            <div class="stat-item error" id="statError">❌ 0</div>
+        </div>
+        <button class="clear-btn" onclick="clearLog()">Clear Log</button>
+    </div>
 
     <script>
         let db;
-        const statusEl = document.getElementById('status');
-        const tenantSelect = document.getElementById('tenantSelect');
-        const sectorSelect = document.getElementById('sectorSelect');
-        const newSectorGroup = document.getElementById('newSectorGroup');
-        const newSectorInput = document.getElementById('newSectorInput');
+        let html5QrCode;
+        let isScanning = false;
+        let processedCodes = new Set();
+        let logEntries = [];
+        let entryId = 0;
+
+        const statusColors = {
+            success: { bg: '#d4edda', text: '#155724', icon: '✅' },
+            error: { bg: '#f8d7da', text: '#721c24', icon: '❌' },
+            pending: { bg: '#fff3cd', text: '#856404', icon: '⏳' }
+        };
+
+        // Auto-clear processed codes after 5 seconds
+        setInterval(() => {
+            const fiveSecAgo = Date.now() - 5000;
+            processedCodes.forEach(code => {
+                const entry = logEntries.find(e => e.code === code && e.status !== 'pending');
+                if (entry && entry.timestamp < fiveSecAgo) {
+                    processedCodes.delete(code);
+                }
+            });
+        }, 1000);
 
         function showStatus(msg, type) {
-            statusEl.textContent = msg;
-            statusEl.className = type;
-            statusEl.style.display = 'block';
+            const statusEl = document.getElementById('status');
+            if (!statusEl) {
+                const el = document.createElement('div');
+                el.id = 'status';
+                el.style.cssText = 'margin-top:20px;padding:10px;border-radius:5px;display:none;';
+                document.querySelector('button').after(el);
+            }
+            const statusElement = document.getElementById('status');
+            statusElement.textContent = msg;
+            statusElement.style.background = statusColors[type]?.bg || '#eee';
+            statusElement.style.color = statusColors[type]?.text || '#333';
+            statusElement.style.display = 'block';
+        }
+
+        function addLogEntry(tagId, code, status = 'pending') {
+            const id = ++entryId;
+            const entry = {
+                id,
+                tagId,
+                code,
+                status,
+                timestamp: Date.now()
+            };
+            logEntries.unshift(entry);
+            renderLog();
+            updateStats();
+            return id;
+        }
+
+        function updateLogStatus(id, status) {
+            const entry = logEntries.find(e => e.id === id);
+            if (entry) {
+                entry.status = status;
+                if (status !== 'pending') {
+                    processedCodes.add(entry.code);
+                }
+                renderLog();
+                updateStats();
+            }
+        }
+
+        function renderLog() {
+            const logList = document.getElementById('logList');
+            const logCount = document.getElementById('logCount');
+            
+            logCount.textContent = logEntries.length;
+            
+            logList.innerHTML = logEntries.map(entry => {
+                const time = new Date(entry.timestamp).toLocaleTimeString();
+                const icons = { success: '✅', error: '❌', pending: '⏳' };
+                const retryBtn = entry.status === 'error' 
+                    ? `<button class="retry-btn" onclick="retryEntry(${entry.id})">↻ Retry</button>` 
+                    : '';
+                
+                return `
+                    <li class="log-item ${entry.status}">
+                        <span class="status-icon">${icons[entry.status]}</span>
+                        <div class="log-info">
+                            <div class="tag-id">${escapeHtml(entry.tagId)}</div>
+                            <div class="log-time">${time}</div>
+                        </div>
+                        ${retryBtn}
+                    </li>
+                `;
+            }).join('');
+        }
+
+        function updateStats() {
+            const success = logEntries.filter(e => e.status === 'success').length;
+            const pending = logEntries.filter(e => e.status === 'pending').length;
+            const error = logEntries.filter(e => e.status === 'error').length;
+            
+            document.getElementById('statSuccess').textContent = `✅ ${success}`;
+            document.getElementById('statPending').textContent = `⏳ ${pending}`;
+            document.getElementById('statError').textContent = `❌ ${error}`;
+        }
+
+        function clearLog() {
+            logEntries = [];
+            processedCodes.clear();
+            entryId = 0;
+            renderLog();
+            updateStats();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         async function init() {
@@ -119,24 +519,89 @@
             newSectorGroup.style.display = sectorSelect.value === 'NEW' ? 'block' : 'none';
         });
 
-        const html5QrCode = new Html5Qrcode("reader");
-        const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-            const tagIdMatch = decodedText.match(/\/a\/([a-zA-Z0-9]+)/);
-            if (tagIdMatch) {
-                const tagId = tagIdMatch[1];
-                html5QrCode.stop().then(() => {
-                    upsertTag(tagId);
-                });
-            } else {
-                showStatus("Invalid QR Code format. Expected onetapgo.site/a/TAG_ID", "error");
+        async function requestCameraPermission() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                stream.getTracks().forEach(track => track.stop());
+                document.getElementById('permissionPrompt').style.display = 'none';
+                startScanner();
+            } catch (e) {
+                showStatus("Camera permission denied: " + e.message, "error");
             }
-        };
+        }
 
-        async function upsertTag(tagId) {
+        function startScanner() {
+            const startScanBtn = document.getElementById('startScanBtn');
+            const scanOverlay = document.querySelector('.scan-overlay');
+            const logContainer = document.getElementById('logContainer');
+            
+            if (!tenantSelect.value) {
+                alert("Please select a tenant first");
+                return;
+            }
+
+            logContainer.style.display = 'block';
+            scanOverlay.style.display = 'block';
+            
+            html5QrCode = new Html5Qrcode("reader");
+            
+            const config = {
+                fps: 15,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0,
+                disableFlip: false,
+                rememberLastUsedCamera: true
+            };
+
+            html5QrCode.start(
+                { facingMode: "environment" },
+                config,
+                onScanSuccess,
+                onScanError
+            ).then(() => {
+                isScanning = true;
+                startScanBtn.textContent = '🛑 Stop Scanner';
+                startScanBtn.classList.add('stop');
+            }).catch(err => {
+                console.error("Error starting scanner", err);
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    document.getElementById('permissionPrompt').style.display = 'block';
+                } else {
+                    showStatus("Error starting scanner: " + err, "error");
+                }
+            });
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            const tagIdMatch = decodedText.match(/\/a\/([a-zA-Z0-9]+)/);
+            
+            if (tagIdMatch && !processedCodes.has(decodedText)) {
+                const tagId = tagIdMatch[1];
+                const logId = addLogEntry(tagId, decodedText, 'pending');
+                
+                // Vibration feedback (Android only)
+                if (navigator.vibrate) {
+                    navigator.vibrate(50);
+                }
+                
+                upsertTag(tagId, logId, decodedText);
+            }
+        }
+
+        function onScanError(error) {
+            // Ignore scanning errors - they happen frequently during normal operation
+            // Only log actual parsing errors
+            if (error.message && !error.message.includes('Waiting for image')) {
+                console.debug('Scan error:', error);
+            }
+        }
+
+        async function upsertTag(tagId, logId, code) {
             const tenantId = tenantSelect.value;
             let sectorId = sectorSelect.value;
 
             if (!tenantId) {
+                updateLogStatus(logId, 'error');
                 showStatus("Please select a tenant first", "error");
                 return;
             }
@@ -144,16 +609,24 @@
             if (sectorId === 'NEW') {
                 sectorId = newSectorInput.value.trim();
                 if (!sectorId) {
+                    updateLogStatus(logId, 'error');
                     showStatus("Please enter a new sector ID", "error");
                     return;
                 }
-                await db.collection('tenants').doc(tenantId).collection('sectors').doc(sectorId).set({
-                    name: sectorId,
-                    created_at: firebase.firestore.FieldValue.serverTimestamp()
-                }, { merge: true });
+                try {
+                    await db.collection('tenants').doc(tenantId).collection('sectors').doc(sectorId).set({
+                        name: sectorId,
+                        created_at: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+                } catch (e) {
+                    updateLogStatus(logId, 'error');
+                    console.error("Error creating sector", e);
+                    return;
+                }
             }
 
             if (!sectorId) {
+                updateLogStatus(logId, 'error');
                 showStatus("Please select or create a sector", "error");
                 return;
             }
@@ -180,26 +653,70 @@
                 }
 
                 await tagRef.set(data, { merge: true });
-                showStatus(`Tag ${tagId} successfully registered!`, "success");
+                updateLogStatus(logId, 'success');
+                
+                // Success vibration
+                if (navigator.vibrate) {
+                    navigator.vibrate([50, 50, 50]);
+                }
             } catch (e) {
                 console.error("Error upserting tag", e);
-                showStatus("Error saving tag: " + e.message, "error");
+                updateLogStatus(logId, 'error');
             }
         }
 
-        document.getElementById('startScan').addEventListener('click', () => {
-            if (!tenantSelect.value) {
-                alert("Please select a tenant first");
-                return;
+        async function retryEntry(id) {
+            const entry = logEntries.find(e => e.id === id);
+            if (!entry) return;
+            
+            updateLogStatus(id, 'pending');
+            await upsertTag(entry.tagId, id, entry.code);
+        }
+
+        document.getElementById('startScanBtn').addEventListener('click', () => {
+            if (isScanning) {
+                stopScanner();
+            } else {
+                startScanner();
             }
-            statusEl.style.display = 'none';
-            html5QrCode.start(
-                { facingMode: "environment" },
-                { fps: 10, qrbox: { width: 250, height: 250 } },
-                qrCodeSuccessCallback
-            ).catch(err => {
-                showStatus("Error starting scanner: " + err, "error");
-            });
+        });
+
+        function stopScanner() {
+            const startScanBtn = document.getElementById('startScanBtn');
+            const scanOverlay = document.querySelector('.scan-overlay');
+            
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    html5QrCode.clear();
+                }).catch(err => {
+                    console.error("Error stopping scanner", err);
+                });
+            }
+            
+            isScanning = false;
+            startScanBtn.textContent = '📷 Start QR Scanner';
+            startScanBtn.classList.remove('stop');
+            scanOverlay.style.display = 'none';
+        }
+
+        // Handle page visibility changes to pause/resume scanning
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                if (isScanning && html5QrCode) {
+                    html5QrCode.pause();
+                }
+            } else {
+                if (isScanning && html5QrCode) {
+                    html5QrCode.resume();
+                }
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (html5QrCode && isScanning) {
+                html5QrCode.stop();
+            }
         });
 
         init();

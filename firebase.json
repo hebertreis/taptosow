@@ -33,8 +33,41 @@
         "function": "redirectAuto"
       },
       {
-        "source": "/rampchurchdmv",
-        "function": "redirectAuto"
+        "source": "/createCoraPixCharge",
+        "function": "createCoraPixCharge"
+      },
+      {
+        "source": "/checkCoraPixStatus",
+        "function": "checkCoraPixStatus"
+      },
+      { "source": "/getStripePublicKey", "function": "getStripePublicKey" },
+      {
+        "source": "/getTenantBySlug",
+        "function": "getTenantBySlug"
+      },
+      {
+        "source": "/a/**",
+        "function": "iotRouter"
+      },
+      {
+        "source": "/createPagBankOrder",
+        "function": "createPagBankOrder"
+      },
+      {
+        "source": "/api/seed",
+        "function": "iotSeed"
+      },
+      {
+        "source": "/api/device/sync",
+        "function": "iotRouter"
+      },
+      {
+        "source": "/api/device/event",
+        "function": "iotRouter"
+      },
+      {
+        "source": "/go/**",
+        "function": "iotRouter"
       },
       {
         "source": "**",
