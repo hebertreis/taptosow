@@ -57,20 +57,25 @@
 #define MQTT_CLIENT_PREFIX "onetapgo_device"
 
 // Device Configuration
-#define DEVICE_VERSION "3.1.0"
+#define DEVICE_VERSION "3.2.0"
 #define HEARTBEAT_INTERVAL 30000      // 30 seconds
 #define WIFI_RECONNECT_INTERVAL 10000 // 10 seconds
 #define MQTT_RECONNECT_DELAY 5000     // 5 seconds
 #define MAX_RECONNECT_ATTEMPTS 10
+
+// NFC Optimization Configuration
+#define NFC_POLL_INTERVAL 50          // 50ms between NFC polls (faster detection)
+#define NFC_ACTIVITY_TIMEOUT 5000     // 5 seconds timeout for NFC operations
+#define SECTOR_COUNT 16               // Number of sectors to read (for 1K cards)
 
 // Hardware Configuration - NodeMCU LoLin V3
 #define RC522_SS_PIN  4   // D2 (GPIO 4)
 #define RC522_RST_PIN 5   // D1 (GPIO 5)
 
 // LCD Display Configuration (SSD1306 128x64)
-#define OLED_SDA_PIN 2    // D4 (GPIO 2)
-#define OLED_SCL_PIN 14   // D5 (GPIO 14)
-#define OLED_RESET_PIN 16 // RST (GPIO 16)
+#define OLED_SDA_PIN 14    // D4 (GPIO 2)
+#define OLED_SCL_PIN 12   // D5 (GPIO 14)
+#define OLED_RESET_PIN -1 // RST (GPIO 16)
 #define OLED_ADDRESS 0x3C
 
 // Button Configuration (optional)
@@ -122,8 +127,10 @@ void publishStatus();
 void publishHeartbeat();
 void publishDebugStatus();
 void publishReadModeStatus();
-void publishTagData(const String& tagId);
+void publishTagData(const String& tagId, const String& ndefUrl = "");
 String readTagData();
+String readAllSectorData();
+String extractNdefUrl();
 void waitForTagRemoval();
 
 // ============================================================================
@@ -132,12 +139,12 @@ void waitForTagRemoval();
 
 void displayInit() {
     Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
-    
+
     if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
         Serial.println(F("SSD1306 allocation failed"));
         return;
     }
-    
+
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
@@ -145,7 +152,7 @@ void displayInit() {
     display.println(F("OneTapGo v" DEVICE_VERSION));
     display.println(F("Initializing..."));
     display.display();
-    delay(1000);
+    delay(500); // Reduced from 1000ms
 }
 
 void displayShowState(DeviceState state, const char* extraInfo = nullptr) {
@@ -218,8 +225,7 @@ void displayShowState(DeviceState state, const char* extraInfo = nullptr) {
     
     display.display();
 
-    // Re-init NFC após I2C para evitar conflitos
-    SPI.endTransaction();
+    // Re-init NFC após I2C para evitar conflitos (otimizado)
     delay(10);
     mfrc522.PCD_Init();
     mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
@@ -533,6 +539,8 @@ void publishStatus() {
     doc["status"] = isMqttConnected ? "online" : "offline";
     doc["state"] = currentState;
     doc["wifi_rssi"] = WiFi.RSSI();
+    doc["wifi_ssid"] = WiFi.SSID();
+    doc["ip_address"] = WiFi.localIP().toString();
     doc["free_heap"] = ESP.getFreeHeap();
     doc["timestamp"] = millis();
     doc["version"] = DEVICE_VERSION;
@@ -623,22 +631,33 @@ void publishReadModeStatus() {
     publishMessage(mqttTopicBase + "/debug", payload);
 }
 
-void publishTagData(const String& tagId) {
-    StaticJsonDocument<512> doc;
+void publishTagData(const String& tagId, const String& ndefUrl) {
+    StaticJsonDocument<1024> doc;
     doc["type"] = "tag_data";
     doc["deviceId"] = deviceId;
     doc["tagId"] = tagId;
     doc["timestamp"] = millis();
     
-    // Add debug data if available
+    // Add NDEF URL if available
+    if (ndefUrl.length() > 0) {
+        doc["ndefUrl"] = ndefUrl;
+    }
+
+    // Read all sector data
+    String sectorData = readAllSectorData();
+    if (sectorData.length() > 0) {
+        doc["sectorData"] = sectorData;
+    }
+
+    // Add debug data if enabled
     if (debugMode) {
         MFRC522::MIFARE_Key key;
         for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;
-        
+
         MFRC522::Uid uid;
         if (mfrc522.PICC_ReadCardSerial()) {
             uid = mfrc522.uid;
-            
+
             String uidStr = "";
             for (byte i = 0; i < uid.size; i++) {
                 if (uid.uidByte[i] < 0x10) uidStr += "0";
@@ -648,21 +667,21 @@ void publishTagData(const String& tagId) {
             doc["uid"] = uidStr;
             doc["uidLength"] = uid.size;
             doc["tagType"] = mfrc522.PICC_GetTypeName((MFRC522::PICC_Type)uid.sak);
-            
+
             mfrc522.PICC_HaltA();
         }
-        
-        // Read NDEF data
+
+        // Read NDEF message details
         NfcTag tag = nfc.read();
         if (tag.hasNdefMessage()) {
             NdefMessage message = tag.getNdefMessage();
             doc["ndefRecordCount"] = message.getRecordCount();
-            
+
             JsonArray records = doc.createNestedArray("ndefRecords");
             for (int i = 0; i < message.getRecordCount(); i++) {
                 NdefRecord record = message.getRecord(i);
                 JsonObject recordObj = records.createNestedObject();
-                
+
                 String recordType = "";
                 byte typeLen = record.getTypeLength();
                 for (int j = 0; j < typeLen; j++) {
@@ -670,7 +689,7 @@ void publishTagData(const String& tagId) {
                     if (c >= 32 && c < 127) recordType += c;
                 }
                 recordObj["type"] = recordType;
-                
+
                 String payloadStr = "";
                 uint16_t payloadLen = record.getPayloadLength();
                 for (uint16_t j = 0; j < payloadLen; j++) {
@@ -709,7 +728,7 @@ bool writeNfcTag(const String& tenantId, const String& sectorId, const String& u
     // Create NDEF message
     NdefMessage message = NdefMessage();
 
-    // Add URI record (primary)
+    // Add URI record (primary) - optimized
     message.addUriRecord(url.c_str());
 
     // Add text record (secondary info)
@@ -722,14 +741,14 @@ bool writeNfcTag(const String& tenantId, const String& sectorId, const String& u
         Serial.println(url);
         Serial.print(F("[NFC] Text record: "));
         Serial.println(textRecord);
-        
+
         // Debug NDEF message size
         int messageSize = message.getEncodedSize();
         Serial.print(F("[NFC] Encoded message size: "));
         Serial.println(messageSize);
     }
 
-    // Write to tag
+    // Write to tag (optimized - no retry delay)
     bool success = nfc.write(message);
 
     if (success) {
@@ -763,11 +782,16 @@ void processNfcTag() {
     // Check if in read mode
     if (readMode || currentState == STATE_READ_MODE) {
         Serial.println(F("[NFC] Read mode - sending tag data"));
-        publishTagData(tagId);
         
+        // Extract NDEF URL first (faster)
+        String ndefUrl = extractNdefUrl();
+        
+        // Send all data including sectors and URL
+        publishTagData(tagId, ndefUrl);
+
         // Wait for tag removal
         waitForTagRemoval();
-        
+
         // Return to read mode or idle
         currentState = readMode ? STATE_READ_MODE : STATE_IDLE;
         displayShowState(currentState);
@@ -776,8 +800,8 @@ void processNfcTag() {
 
     // Check if we have pending write command
     if (pendingTenantId.length() > 0 && pendingSectorId.length() > 0 && pendingUrl.length() > 0) {
-        // Wait for user to position tag correctly
-        displayShowMessage("Processing", "Keep tag steady...", 500);
+        // Wait for user to position tag correctly (reduced delay)
+        displayShowMessage("Processing", "Keep tag steady...", 300);
 
         // Attempt write
         bool success = writeNfcTag(pendingTenantId, pendingSectorId, pendingUrl);
@@ -810,29 +834,28 @@ void processNfcTag() {
     } else {
         // No pending command, just read tag info
         Serial.println(F("[NFC] No pending write command"));
-        displayShowMessage("Info", "No write pending", 2000);
+        displayShowMessage("Info", "No write pending", 1500);
         currentState = STATE_IDLE;
     }
 
     mfrc522.PICC_HaltA();
     mfrc522.PCD_StopCrypto1();
-    SPI.endTransaction();  // Fecha SPI para evitar conflitos com o display
 }
 
 String readTagData() {
     String tagId = "tag_" + String(millis());
-    
+
     if (debugMode) {
         Serial.println(F("[NFC] === Tag Read Debug ==="));
-        
+
         // Read UID
         MFRC522::MIFARE_Key key;
         for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;
-        
+
         MFRC522::Uid uid;
         if (mfrc522.PICC_ReadCardSerial()) {
             uid = mfrc522.uid;
-            
+
             Serial.print(F("[NFC] Tag UID: "));
             for (byte i = 0; i < uid.size; i++) {
                 if (uid.uidByte[i] < 0x10) Serial.print(F("0"));
@@ -840,16 +863,16 @@ String readTagData() {
                 Serial.print(F(" "));
             }
             Serial.println();
-            
+
             Serial.print(F("[NFC] UID length: "));
             Serial.println(uid.size);
-            
+
             Serial.print(F("[NFC] Tag type: "));
             Serial.println(mfrc522.PICC_GetTypeName((MFRC522::PICC_Type)uid.sak));
-            
+
             mfrc522.PICC_HaltA();
         }
-        
+
         // Try to read NDEF data
         Serial.println(F("[NFC] Attempting to read NDEF data..."));
         NfcTag tag = nfc.read();
@@ -857,13 +880,13 @@ String readTagData() {
             NdefMessage message = tag.getNdefMessage();
             Serial.print(F("[NFC] NDEF records: "));
             Serial.println(message.getRecordCount());
-            
+
             for (int i = 0; i < message.getRecordCount(); i++) {
                 NdefRecord record = message.getRecord(i);
                 Serial.print(F("[NFC] Record "));
                 Serial.print(i);
                 Serial.print(F(" Type: "));
-                
+
                 // Print type as hex bytes
                 byte typeLen = record.getTypeLength();
                 for (byte j = 0; j < typeLen; j++) {
@@ -873,7 +896,7 @@ String readTagData() {
                     Serial.print(F(" "));
                 }
                 Serial.println();
-                
+
                 String payload = "";
                 uint16_t payloadLen = record.getPayloadLength();
                 for (uint16_t j = 0; j < payloadLen; j++) {
@@ -886,11 +909,136 @@ String readTagData() {
         } else {
             Serial.println(F("[NFC] No NDEF data or read failed"));
         }
-        
+
         Serial.println(F("[NFC] ========================"));
     }
-    
+
     return tagId;
+}
+
+String extractNdefUrl() {
+    String url = "";
+    
+    // Try to read NDEF message
+    NfcTag tag = nfc.read();
+    if (!tag.hasNdefMessage()) {
+        Serial.println(F("[NFC] No NDEF message found"));
+        return "";
+    }
+    
+    NdefMessage message = tag.getNdefMessage();
+    int recordCount = message.getRecordCount();
+    
+    for (int i = 0; i < recordCount; i++) {
+        NdefRecord record = message.getRecord(i);
+        
+        // Check if it's a URI record (type "U" or 0x55)
+        byte typeLen = record.getTypeLength();
+        if (typeLen == 1 && record.getType()[0] == 0x55) {
+            // URI record found
+            uint16_t payloadLen = record.getPayloadLength();
+            if (payloadLen > 1) {
+                byte prefixCode = record.getPayload()[0];
+                
+                // Get prefix based on code
+                String prefix = "";
+                if (prefixCode == 0x00) prefix = "";
+                else if (prefixCode == 0x01) prefix = "http://www.";
+                else if (prefixCode == 0x02) prefix = "https://www.";
+                else if (prefixCode == 0x03) prefix = "http://";
+                else if (prefixCode == 0x04) prefix = "https://";
+                else prefix = "";
+                
+                // Read the rest of the payload
+                for (uint16_t j = 1; j < payloadLen; j++) {
+                    char c = record.getPayload()[j];
+                    if (c >= 32 && c < 127) {
+                        url += c;
+                    }
+                }
+                
+                // Add prefix if not already in URL
+                if (prefix.length() > 0 && !url.startsWith(prefix)) {
+                    url = prefix + url;
+                }
+                
+                Serial.print(F("[NFC] NDEF URL extracted: "));
+                Serial.println(url);
+                return url;
+            }
+        }
+    }
+    
+    Serial.println(F("[NFC] No URI record found in NDEF message"));
+    return "";
+}
+
+String readAllSectorData() {
+    MFRC522::MIFARE_Key key;
+    for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;
+    
+    StaticJsonDocument<2048> doc;
+    JsonArray sectors = doc.createNestedArray("sectors");
+    
+    byte buffer[18];
+    
+    // Read all sectors (0 to 15 for 1K card)
+    for (byte sector = 0; sector < SECTOR_COUNT; sector++) {
+        JsonObject sectorObj = sectors.createNestedObject();
+        sectorObj["sector"] = sector;
+        
+        JsonArray blocks = sectorObj.createNestedArray("blocks");
+        
+        // Each sector has 4 blocks (0-3), except sector 15 which may vary
+        byte blocksInSector = (sector < 32) ? 4 : 16;
+        byte startBlock = sector * 4;
+        
+        for (byte block = 0; block < blocksInSector; block++) {
+            byte blockAddr = startBlock + block;
+            
+            // Authenticate
+            byte status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, blockAddr, &key, &(mfrc522.uid));
+            if (status != MFRC522::STATUS_OK) {
+                // Skip unreadable blocks
+                continue;
+            }
+            
+            // Read block
+            byte size = sizeof(buffer);
+            status = mfrc522.MIFARE_Read(blockAddr, buffer, &size);
+            
+            if (status == MFRC522::STATUS_OK) {
+                JsonObject blockObj = blocks.createNestedObject();
+                blockObj["block"] = blockAddr;
+                
+                // Convert to hex string
+                String data = "";
+                for (byte i = 0; i < 16; i++) {
+                    if (buffer[i] < 0x10) data += "0";
+                    data += String(buffer[i], HEX);
+                    if (i < 15) data += " ";
+                }
+                blockObj["data"] = data;
+                
+                // Try to convert to ASCII if printable
+                String ascii = "";
+                for (byte i = 0; i < 16; i++) {
+                    char c = buffer[i];
+                    if (c >= 32 && c < 127) ascii += c;
+                    else ascii += ".";
+                }
+                blockObj["ascii"] = ascii;
+            }
+            
+            mfrc522.PICC_HaltA();
+            mfrc522.PCD_StopCrypto1();
+            yield(); // Prevent watchdog reset
+        }
+    }
+    
+    String result;
+    serializeJson(doc, result);
+    return result;
 }
 
 void waitForTagRemoval() {
@@ -906,27 +1054,27 @@ void waitForTagRemoval() {
 
 void nfcInit() {
     Serial.println(F("\n[NFC] Initializing RC522..."));
-    
+
     SPI.begin();
     mfrc522.PCD_Init();
-    
+
     // Set maximum antenna gain
     mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
-    
-    // Wait for RC522 to be ready
-    delay(100);
-    
+
+    // Check firmware version (reduced wait)
+    delay(50);
+
     // Check firmware version
     byte version = mfrc522.PCD_ReadRegister(mfrc522.VersionReg);
     Serial.print(F("[NFC] RC522 Firmware Version: 0x"));
     Serial.println(version, HEX);
-    
+
     if (version == 0x00 || version == 0xFF) {
         Serial.println(F("[NFC] WARNING: RC522 not found or not responding!"));
-        displayShowMessage("NFC Error", "RC522 not found", 3000);
+        displayShowMessage("NFC Error", "RC522 not found", 2000);
     } else {
         Serial.println(F("[NFC] RC522 initialized successfully"));
-        displayShowMessage("NFC OK", "Ready to write", 1000);
+        displayShowMessage("NFC OK", "Ready to write", 500);
     }
 }
 
@@ -978,9 +1126,14 @@ void systemLoop() {
     mqttLoop();
 
     // Check for NFC tag (when waiting, idle, or in read mode)
-    if (currentState == STATE_WAITING_TAG || currentState == STATE_IDLE || currentState == STATE_READ_MODE) {
-        if (nfc.tagPresent()) {
-            processNfcTag();
+    static unsigned long lastNfcPoll = 0;
+    if (millis() - lastNfcPoll >= NFC_POLL_INTERVAL) {
+        lastNfcPoll = millis();
+        
+        if (currentState == STATE_WAITING_TAG || currentState == STATE_IDLE || currentState == STATE_READ_MODE) {
+            if (nfc.tagPresent()) {
+                processNfcTag();
+            }
         }
     }
 
