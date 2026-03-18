@@ -98,6 +98,8 @@ String deviceId = "";
 String mqttTopicBase = "";
 bool isMqttConnected = false;
 bool isWifiConnected = false;
+bool isNfcConnected = false;
+byte nfcFirmwareVersion = 0x00;
 unsigned long lastHeartbeat = 0;
 unsigned long lastReconnectAttempt = 0;
 int reconnectAttempts = 0;
@@ -120,7 +122,8 @@ String pendingTenantId = "";
 String pendingSectorId = "";
 String pendingUrl = "";
 bool debugMode = false;
-bool readMode = false;
+bool readMode = true;  // Default to read mode (always transmitting to MQTT)
+bool hasPendingWriteCommand = false;  // True when waiting for write command from MQTT
 
 // Forward declarations
 void publishStatus();
@@ -158,27 +161,51 @@ void displayInit() {
 void displayShowState(DeviceState state, const char* extraInfo = nullptr) {
     display.clearDisplay();
     display.setCursor(0, 0);
-    
+
     // Header
     display.setTextSize(1);
     display.println(F("=== OneTapGo ==="));
     display.println();
-    
+
     // State display
     display.setTextSize(1);
     switch (state) {
         case STATE_IDLE:
-            display.println(F("Status: Ready"));
+            // Only show "Ready" if all systems are connected
+            if (isWifiConnected && isMqttConnected && isNfcConnected) {
+                if (hasPendingWriteCommand) {
+                    display.println(F("Mode: Writer"));
+                    display.println(F("Waiting for tag..."));
+                } else if (readMode) {
+                    display.println(F("Mode: Reader"));
+                    display.println(F("Auto-transmitting"));
+                } else {
+                    display.println(F("Status: Ready"));
+                }
+            } else {
+                display.println(F("Status: Initializing"));
+                // Show what's missing
+                if (!isWifiConnected) {
+                    display.println(F("- WiFi"));
+                }
+                if (!isMqttConnected) {
+                    display.println(F("- MQTT"));
+                }
+                if (!isNfcConnected) {
+                    display.println(F("- NFC"));
+                }
+            }
             break;
         case STATE_WAITING_TAG:
-            display.println(F("Status: Waiting"));
-            display.println(F("Place NFC tag"));
+            display.println(F("Mode: Writer"));
+            display.println(F("Waiting for tag..."));
             break;
         case STATE_TAG_DETECTED:
             display.println(F("Status: Tag Found"));
             break;
         case STATE_WRITING:
-            display.println(F("Status: Writing..."));
+            display.println(F("Mode: Writing"));
+            display.println(F("Programming tag..."));
             break;
         case STATE_SUCCESS:
             display.setTextSize(2);
@@ -204,10 +231,10 @@ void displayShowState(DeviceState state, const char* extraInfo = nullptr) {
             break;
         case STATE_READ_MODE:
             display.println(F("Mode: Reader"));
-            display.println(F("Place tag to read"));
+            display.println(F("Auto-transmitting"));
             break;
     }
-    
+
     // Footer - Connection status
     display.println();
     display.setTextSize(1);
@@ -217,6 +244,15 @@ void displayShowState(DeviceState state, const char* extraInfo = nullptr) {
     statusLine += isMqttConnected ? "OK" : "NO";
     display.println(statusLine);
     
+    // NFC status line
+    String nfcLine = F("NFC:");
+    nfcLine += isNfcConnected ? "OK" : "NO";
+    if (isNfcConnected && nfcFirmwareVersion != 0x00) {
+        nfcLine += F(" v0x");
+        nfcLine += String(nfcFirmwareVersion, HEX);
+    }
+    display.println(nfcLine);
+
     // IP Address if connected
     if (isWifiConnected) {
         display.print(F("IP: "));
@@ -225,10 +261,14 @@ void displayShowState(DeviceState state, const char* extraInfo = nullptr) {
     
     display.display();
 
-    // Re-init NFC após I2C para evitar conflitos (otimizado)
-    delay(10);
-    mfrc522.PCD_Init();
-    mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
+    // Re-init RC522 after I2C use (shared pins: 12, 14)
+    // Same pattern as esp8266-python-writer: rfid.init() after oled.show()
+    // Only re-init if we're about to poll for NFC tags (not during active operations)
+    if (currentState == STATE_IDLE || currentState == STATE_READ_MODE || currentState == STATE_WAITING_TAG) {
+        delay(10);
+        mfrc522.PCD_Init();
+        mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
+    }
 }
 
 void displayShowMessage(const char* title, const char* message, int duration = 2000) {
@@ -385,6 +425,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         pendingTenantId = doc["tenantId"].as<String>();
         pendingSectorId = doc["sectorId"].as<String>();
         pendingUrl = doc["url"].as<String>();
+        hasPendingWriteCommand = true;  // Mark that we have a pending write command
+        readMode = false;  // Disable read mode when waiting for write
         currentState = STATE_WAITING_TAG;
         displayShowState(STATE_WAITING_TAG);
 
@@ -395,6 +437,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         Serial.println(pendingSectorId);
         Serial.print(F("[MQTT] URL: "));
         Serial.println(pendingUrl);
+        Serial.println(F("[MQTT] Mode: Writer (waiting for tag)"));
     }
     else if (strcmp(commandType, "status") == 0) {
         // Send current status
@@ -414,11 +457,17 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     else if (strcmp(commandType, "set_read_mode") == 0) {
         readMode = doc["enabled"].as<bool>();
         if (readMode) {
+            hasPendingWriteCommand = false;  // Clear any pending write command
+            pendingTenantId = "";
+            pendingSectorId = "";
+            pendingUrl = "";
             currentState = STATE_READ_MODE;
-            displayShowState(STATE_READ_MODE, "Reading tags...");
+            displayShowState(STATE_READ_MODE);
+            Serial.println(F("[MQTT] Mode: Reader (auto-transmitting)"));
         } else {
             currentState = STATE_IDLE;
             displayShowState(STATE_IDLE);
+            Serial.println(F("[MQTT] Mode: Standby"));
         }
         Serial.print(F("[MQTT] Read mode: "));
         Serial.println(readMode ? "ON" : "OFF");
@@ -427,7 +476,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     else if (strcmp(commandType, "read_tag") == 0) {
         // One-time read command
         currentState = STATE_READ_MODE;
-        displayShowState(STATE_READ_MODE, "Waiting for tag...");
+        displayShowState(STATE_READ_MODE);
         Serial.println(F("[MQTT] One-time read command received"));
     }
 }
@@ -466,19 +515,22 @@ bool mqttConnect() {
     String willTopic = mqttTopicBase + "/status";
     String willMessage = "{\"status\":\"offline\",\"timestamp\":" + String(millis()) + "}";
     
-    if (mqttClient.connect(deviceId.c_str(), MQTT_USERNAME, MQTT_PASSWORD, 
+    if (mqttClient.connect(deviceId.c_str(), MQTT_USERNAME, MQTT_PASSWORD,
                           willTopic.c_str(), 1, true, willMessage.c_str())) {
         Serial.println(F(" OK"));
-        
+
         // Subscribe to command topic
         String commandTopic = mqttTopicBase + "/command";
         mqttClient.subscribe(commandTopic.c_str(), 1);
         Serial.print(F("[MQTT] Subscribed to: "));
         Serial.println(commandTopic);
-        
+
         isMqttConnected = true;
         publishStatus();
         
+        // Update display to show MQTT connected
+        displayShowState(currentState);
+
         return true;
     } else {
         Serial.print(F(" FAILED - Code: "));
@@ -490,26 +542,42 @@ bool mqttConnect() {
 
 void mqttLoop() {
     mqttClient.loop();
+
+    // Check connection - update display if status changed
+    static bool wasConnected = false;
+    bool currentlyConnected = mqttClient.connected();
     
-    // Check connection
-    if (!mqttClient.connected()) {
+    if (!currentlyConnected) {
+        // Connection lost - update display if status changed
+        if (wasConnected && isMqttConnected) {
+            isMqttConnected = false;
+            displayShowState(currentState);
+        }
+        
         if (millis() - lastReconnectAttempt > MQTT_RECONNECT_DELAY) {
             lastReconnectAttempt = millis();
-            
-            if (!mqttConnect()) {
+
+            bool connected = mqttConnect();
+            if (!connected) {
                 reconnectAttempts++;
                 Serial.print(F("[MQTT] Reconnect attempt "));
                 Serial.print(reconnectAttempts);
                 Serial.println(F(" failed"));
-                
+
                 if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
                     Serial.println(F("[MQTT] Max attempts reached"));
                     reconnectAttempts = 0;
                 }
+            } else {
+                // Successfully reconnected - update display
+                displayShowState(currentState);
             }
         }
+    } else {
+        // Is connected
+        wasConnected = true;
     }
-    
+
     // Send heartbeat
     if (millis() - lastHeartbeat > HEARTBEAT_INTERVAL) {
         lastHeartbeat = millis();
@@ -535,9 +603,16 @@ void publishMessage(const String& topic, const String& payload, bool retained = 
 }
 
 void publishStatus() {
-    StaticJsonDocument<256> doc;
+    StaticJsonDocument<512> doc;
     doc["status"] = isMqttConnected ? "online" : "offline";
+    // Device is only "ready" if all systems are connected
+    doc["ready"] = (isWifiConnected && isMqttConnected && isNfcConnected);
     doc["state"] = currentState;
+    doc["connections"] = JsonObject();
+    doc["connections"]["wifi"] = isWifiConnected;
+    doc["connections"]["mqtt"] = isMqttConnected;
+    doc["connections"]["nfc"] = isNfcConnected;
+    doc["operationMode"] = hasPendingWriteCommand ? "writer" : (readMode ? "reader" : "standby");
     doc["wifi_rssi"] = WiFi.RSSI();
     doc["wifi_ssid"] = WiFi.SSID();
     doc["ip_address"] = WiFi.localIP().toString();
@@ -546,7 +621,7 @@ void publishStatus() {
     doc["version"] = DEVICE_VERSION;
     doc["debugMode"] = debugMode;
     doc["readMode"] = readMode;
-    doc["hasPendingCommand"] = pendingTenantId.length() > 0;
+    doc["hasPendingCommand"] = hasPendingWriteCommand;
 
     String payload;
     serializeJson(doc, payload);
@@ -555,16 +630,24 @@ void publishStatus() {
 }
 
 void publishHeartbeat() {
-    StaticJsonDocument<256> doc;
+    StaticJsonDocument<512> doc;
     doc["type"] = "heartbeat";
     doc["deviceId"] = deviceId;
     doc["state"] = currentState;
+    // Device is only "ready" if all systems are connected
+    doc["ready"] = (isWifiConnected && isMqttConnected && isNfcConnected);
+    doc["connections"] = JsonObject();
+    doc["connections"]["wifi"] = isWifiConnected;
+    doc["connections"]["mqtt"] = isMqttConnected;
+    doc["connections"]["nfc"] = isNfcConnected;
+    doc["operationMode"] = hasPendingWriteCommand ? "writer" : (readMode ? "reader" : "standby");
     doc["wifi_rssi"] = WiFi.RSSI();
     doc["free_heap"] = ESP.getFreeHeap();
     doc["uptime"] = millis();
     doc["timestamp"] = millis();
     doc["debugMode"] = debugMode;
     doc["readMode"] = readMode;
+    doc["hasPendingCommand"] = hasPendingWriteCommand;
 
     String payload;
     serializeJson(doc, payload);
@@ -770,46 +853,69 @@ bool writeNfcTag(const String& tenantId, const String& sectorId, const String& u
 
 void processNfcTag() {
     Serial.println(F("\n[NFC] Tag detected!"));
-    currentState = STATE_TAG_DETECTED;
-    displayShowState(STATE_TAG_DETECTED);
-
-    // Read tag data for debug
-    String tagId = readTagData();
-
-    // Publish tag detection
-    publishTagDetected(tagId);
-
-    // Check if in read mode
-    if (readMode || currentState == STATE_READ_MODE) {
-        Serial.println(F("[NFC] Read mode - sending tag data"));
-        
-        // Extract NDEF URL first (faster)
-        String ndefUrl = extractNdefUrl();
-        
-        // Send all data including sectors and URL
-        publishTagData(tagId, ndefUrl);
-
-        // Wait for tag removal
-        waitForTagRemoval();
-
-        // Return to read mode or idle
-        currentState = readMode ? STATE_READ_MODE : STATE_IDLE;
-        displayShowState(currentState);
+    
+    // Step 1: Request tag (REQIDL) - same as rfid.request(rfid.REQIDL)
+    MFRC522::StatusCode status;
+    MFRC522::Uid uid;
+    byte bufferATQA[2];
+    byte bufferSize = sizeof(bufferATQA);
+    
+    status = mfrc522.PICC_RequestA(bufferATQA, &bufferSize);
+    if (status != MFRC522::STATUS_OK) {
+        Serial.print(F("[NFC] RequestA failed: "));
+        Serial.println(mfrc522.GetStatusCodeName(status));
         return;
     }
+    
+    uid.size = sizeof(uid.uidByte);
+    
+    
+    // Build tag ID from UID
+    String tagId = "";
+    for (byte i = 0; i < uid.size; i++) {
+        if (uid.uidByte[i] < 0x10) tagId += "0";
+        tagId += String(uid.uidByte[i], HEX);
+        if (i < uid.size - 1) tagId += ":";
+    }
+    tagId.toUpperCase();
+    
+    Serial.print(F("[NFC] Tag UID: "));
+    Serial.println(tagId);
+    
+    // Step 3: Select tag - same as rfid.select_tag()
+    status = mfrc522.PICC_Select(&uid);
+    if (status != MFRC522::STATUS_OK) {
+        Serial.print(F("[NFC] Select failed: "));
+        Serial.println(mfrc522.GetStatusCodeName(status));
+        mfrc522.PICC_HaltA();
+        return;
+    }
+    
+    // Tag selected successfully - update state and display
+    currentState = STATE_TAG_DETECTED;
+    displayShowState(STATE_TAG_DETECTED);
+    
+    // Publish tag detection
+    publishTagDetected(tagId);
+    
+    // Small delay after select (same as Python code)
+    delay(5);
 
-    // Check if we have pending write command
-    if (pendingTenantId.length() > 0 && pendingSectorId.length() > 0 && pendingUrl.length() > 0) {
+    // Check if we have pending write command (priority)
+    if (hasPendingWriteCommand && pendingTenantId.length() > 0 && 
+        pendingSectorId.length() > 0 && pendingUrl.length() > 0) {
+        
         // Wait for user to position tag correctly (reduced delay)
         displayShowMessage("Processing", "Keep tag steady...", 300);
 
         // Attempt write
         bool success = writeNfcTag(pendingTenantId, pendingSectorId, pendingUrl);
 
-        // Clear pending command
+        // Clear pending command and reset state
         pendingTenantId = "";
         pendingSectorId = "";
         pendingUrl = "";
+        hasPendingWriteCommand = false;
 
         if (success) {
             currentState = STATE_SUCCESS;
@@ -827,16 +933,39 @@ void processNfcTag() {
             delay(100);
         }
 
-        // Reset to idle
-        currentState = STATE_IDLE;
-        displayShowState(STATE_IDLE);
-
-    } else {
-        // No pending command, just read tag info
-        Serial.println(F("[NFC] No pending write command"));
-        displayShowMessage("Info", "No write pending", 1500);
-        currentState = STATE_IDLE;
+        // Return to read mode (default) or idle
+        currentState = readMode ? STATE_READ_MODE : STATE_IDLE;
+        displayShowState(currentState);
+        mfrc522.PICC_HaltA();
+        mfrc522.PCD_StopCrypto1();
+        return;
     }
+    
+    // Read mode (default) - always transmit tag data to MQTT
+    if (readMode || currentState == STATE_READ_MODE) {
+        Serial.println(F("[NFC] Read mode - sending tag data"));
+
+        // Extract NDEF URL first (faster)
+        String ndefUrl = extractNdefUrl();
+
+        // Send all data including sectors and URL
+        publishTagData(tagId, ndefUrl);
+
+        // Wait for tag removal
+        waitForTagRemoval();
+
+        // Return to read mode or idle
+        currentState = readMode ? STATE_READ_MODE : STATE_IDLE;
+        displayShowState(currentState);
+        mfrc522.PICC_HaltA();
+        mfrc522.PCD_StopCrypto1();
+        return;
+    }
+
+    // No mode specified and no pending command - just read and return
+    Serial.println(F("[NFC] No pending write command"));
+    currentState = STATE_IDLE;
+    displayShowState(currentState);
 
     mfrc522.PICC_HaltA();
     mfrc522.PCD_StopCrypto1();
@@ -1056,25 +1185,44 @@ void nfcInit() {
     Serial.println(F("\n[NFC] Initializing RC522..."));
 
     SPI.begin();
+    
+    // Initialize RC522
     mfrc522.PCD_Init();
-
+    delay(100); // Wait for RC522 to be ready
+    
     // Set maximum antenna gain
     mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
-
-    // Check firmware version (reduced wait)
-    delay(50);
 
     // Check firmware version
     byte version = mfrc522.PCD_ReadRegister(mfrc522.VersionReg);
     Serial.print(F("[NFC] RC522 Firmware Version: 0x"));
     Serial.println(version, HEX);
+    
+    // Store firmware version globally
+    nfcFirmwareVersion = version;
 
     if (version == 0x00 || version == 0xFF) {
         Serial.println(F("[NFC] WARNING: RC522 not found or not responding!"));
-        displayShowMessage("NFC Error", "RC522 not found", 2000);
+        Serial.println(F("[NFC] Check wiring: CS=GPIO15, RST=GPIO2"));
+        isNfcConnected = false;
+        displayShowMessage("NFC Error", "RC522 not found", 3000);
     } else {
         Serial.println(F("[NFC] RC522 initialized successfully"));
-        displayShowMessage("NFC OK", "Ready to write", 500);
+        isNfcConnected = true;
+        // Test tag detection
+        Serial.println(F("[NFC] Testing tag detection..."));
+        byte bufferATQA[2];
+        byte bufferSize = sizeof(bufferATQA);
+        MFRC522::StatusCode status = mfrc522.PICC_RequestA(bufferATQA, &bufferSize);
+        if (status == MFRC522::STATUS_OK) {
+            Serial.println(F("[NFC] Tag detected during test!"));
+        } else {
+            Serial.print(F("[NFC] No tag present (status: "));
+            Serial.println(mfrc522.GetStatusCodeName(status));
+            Serial.println(F(") - This is normal if no tag is near"));
+        }
+
+        displayShowMessage("NFC OK", "Ready to write", 1000);
     }
 }
 
@@ -1086,7 +1234,7 @@ void systemInit() {
     // Initialize serial
     Serial.begin(115200);
     delay(1000);
-    
+
     Serial.println(F("\n========================================"));
     Serial.println(F("   ONETAPGO NFC WRITER v" DEVICE_VERSION));
     Serial.println(F("        BY CRE8 TECNOLOGIA"));
@@ -1095,27 +1243,46 @@ void systemInit() {
     Serial.println(ESP.getFreeHeap());
     Serial.print(F("[SYS] Chip ID: "));
     Serial.println(ESP.getChipId());
-    
+
     // Initialize display
     displayInit();
     displayShowState(STATE_CONFIG_MODE);
-    
+
     // Initialize WiFi
     wifiInit();
     displayShowState(STATE_IDLE);
-    
+
     // Initialize MQTT
     mqttInit();
-    
-    // Initialize NFC
+
+    // Initialize NFC (after I2C display - re-init to ensure proper state)
     nfcInit();
+
+    // Update display with NFC status
+    displayShowState(STATE_IDLE);
+
+    // Final RC522 re-init after all I2C operations (critical for shared pins)
+    delay(50);
+    mfrc522.PCD_Init();
+    mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
+    delay(50);
     
+    // Update display again after final re-init
+    displayShowState(STATE_IDLE);
+
     // Configure button pin (optional)
     pinMode(BUTTON_PIN, INPUT_PULLUP);
-    
+
     Serial.println(F("\n[SYS] Initialization complete"));
     Serial.print(F("[SYS] Free heap after init: "));
     Serial.println(ESP.getFreeHeap());
+    
+    // Log initial mode
+    Serial.print(F("[SYS] Initial mode: "));
+    Serial.println(readMode ? F("Reader (auto-transmitting)") : F("Standby"));
+    if (hasPendingWriteCommand) {
+        Serial.println(F("[SYS] Pending write command: YES"));
+    }
 }
 
 void systemLoop() {
@@ -1125,15 +1292,56 @@ void systemLoop() {
     // Handle MQTT
     mqttLoop();
 
-    // Check for NFC tag (when waiting, idle, or in read mode)
-    static unsigned long lastNfcPoll = 0;
-    if (millis() - lastNfcPoll >= NFC_POLL_INTERVAL) {
-        lastNfcPoll = millis();
+    // Update display periodically to show current mode and connection status
+    static unsigned long lastDisplayUpdate = 0;
+    static DeviceState lastKnownState = STATE_IDLE;
+    static bool lastKnownWifi = false;
+    static bool lastKnownMqtt = false;
+    static bool lastKnownNfc = false;
+    static bool lastKnownReadMode = readMode;
+    static bool lastKnownHasPendingCommand = hasPendingWriteCommand;
+    
+    // Update display every 1 second or when state changes
+    bool stateChanged = (currentState != lastKnownState ||
+        isWifiConnected != lastKnownWifi ||
+        isMqttConnected != lastKnownMqtt ||
+        isNfcConnected != lastKnownNfc ||
+        readMode != lastKnownReadMode ||
+        hasPendingWriteCommand != lastKnownHasPendingCommand);
+    
+    if (millis() - lastDisplayUpdate > 1000 || stateChanged) {
+        lastDisplayUpdate = millis();
+        lastKnownState = currentState;
+        lastKnownWifi = isWifiConnected;
+        lastKnownMqtt = isMqttConnected;
+        lastKnownNfc = isNfcConnected;
+        lastKnownReadMode = readMode;
+        lastKnownHasPendingCommand = hasPendingWriteCommand;
         
-        if (currentState == STATE_WAITING_TAG || currentState == STATE_IDLE || currentState == STATE_READ_MODE) {
-            if (nfc.tagPresent()) {
-                processNfcTag();
-            }
+        Serial.print(F("[DISPLAY] Updating - Mode: "));
+        Serial.print(hasPendingWriteCommand ? F("Writer") : (readMode ? F("Reader") : F("Standby")));
+        Serial.print(F(", WiFi: "));
+        Serial.print(isWifiConnected ? F("OK") : F("NO"));
+        Serial.print(F(", MQTT: "));
+        Serial.print(isMqttConnected ? F("OK") : F("NO"));
+        Serial.print(F(", NFC: "));
+        Serial.println(isNfcConnected ? F("OK") : F("NO"));
+        
+        displayShowState(currentState);
+    }
+
+    // NFC polling - same pattern as esp8266-python-writer
+    // Check for tag only when in appropriate state
+    if (currentState == STATE_WAITING_TAG || currentState == STATE_IDLE || currentState == STATE_READ_MODE) {
+        // Request tag (REQIDL) - continuous polling like Python code
+        byte bufferATQA[2];
+        byte bufferSize = sizeof(bufferATQA);
+        byte status = mfrc522.PICC_RequestA(bufferATQA, &bufferSize);
+
+        if (status == MFRC522::STATUS_OK) {
+            // Tag detected - small delay before processing
+            delay(10);
+            processNfcTag();
         }
     }
 
