@@ -69,18 +69,13 @@
 #define SECTOR_COUNT 16               // Number of sectors to read (for 1K cards)
 
 // Hardware Configuration - NodeMCU LoLin V3 (HW-364A)
-// OLED is fixed on board using I2C on GPIO14/12 (D5/D6)
-// RC522 must use Software SPI on different pins to avoid conflict
-#define RC522_SS_PIN  15  // D8 (GPIO 15) - SS/CS
-#define RC522_RST_PIN 0   // D3 (GPIO 0) - RST
-
-// Software SPI pins for RC522 (to avoid conflict with OLED on GPIO14/12)
-#define RC522_SCK_PIN 5   // D1 (GPIO 5) - SCK
-#define RC522_MISO_PIN 4  // D2 (GPIO 4) - MISO  
-#define RC522_MOSI_PIN 13 // D7 (GPIO 13) - MOSI
+// OLED is fixed on board using I2C on GPIO14/12 (D5/D6) - CONFIRMED by I2C scan
+// RC522 uses hardware SPI which shares GPIO14/12 (SCK/MISO) - designed to work together
+#define RC522_SS_PIN  15  // D8 (GPIO 15) - SS/CS (hardware SPI CS)
+#define RC522_RST_PIN 2   // D4 (GPIO 2) - RST (disconnect during boot)
 
 // LCD Display Configuration (SSD1306 128x64) - Fixed on HW-364A
-// DO NOT CHANGE: These are the hardware I2C pins for the onboard OLED
+// CONFIRMED: HW-364A OLED uses GPIO14/12 (D5/D6), address 0x3C
 #define OLED_SDA_PIN 14   // D5 (GPIO 14) - I2C SDA (fixed on HW-364A)
 #define OLED_SCL_PIN 12   // D6 (GPIO 12) - I2C SCL (fixed on HW-364A)
 #define OLED_RESET_PIN -1 // RST (GPIO 16)
@@ -133,52 +128,6 @@ String pendingUrl = "";
 bool debugMode = false;
 bool readMode = true;  // Default to read mode (always transmitting to MQTT)
 bool hasPendingWriteCommand = false;  // True when waiting for write command from MQTT
-
-// ============================================================================
-// SOFTWARE SPI FOR RC522 (to avoid conflict with OLED on GPIO14/12)
-// ============================================================================
-
-// Software SPI pin definitions
-#define SOFT_SPI_SCK_PIN  5   // D1 (GPIO 5)
-#define SOFT_SPI_MISO_PIN 4   // D2 (GPIO 4)
-#define SOFT_SPI_MOSI_PIN 13  // D7 (GPIO 13)
-
-// Write a byte to RC522 using Software SPI
-void softSpiWrite(byte data) {
-    for (int i = 7; i >= 0; i--) {
-        digitalWrite(SOFT_SPI_SCK_PIN, LOW);
-        digitalWrite(SOFT_SPI_MOSI_PIN, (data >> i) & 0x01);
-        digitalWrite(SOFT_SPI_SCK_PIN, HIGH);
-    }
-}
-
-// Read a byte from RC522 using Software SPI
-byte softSpiRead() {
-    byte data = 0;
-    pinMode(SOFT_SPI_MISO_PIN, INPUT);
-    for (int i = 7; i >= 0; i--) {
-        digitalWrite(SOFT_SPI_SCK_PIN, LOW);
-        if (digitalRead(SOFT_SPI_MISO_PIN)) {
-            data |= (1 << i);
-        }
-        digitalWrite(SOFT_SPI_SCK_PIN, HIGH);
-    }
-    return data;
-}
-
-// Transfer a byte to/from RC522 using Software SPI
-byte softSpiTransfer(byte data) {
-    softSpiWrite(data);
-    return softSpiRead();
-}
-
-// Initialize Software SPI pins
-void softSpiBegin() {
-    pinMode(SOFT_SPI_SCK_PIN, OUTPUT);
-    pinMode(SOFT_SPI_MOSI_PIN, OUTPUT);
-    pinMode(SOFT_SPI_MISO_PIN, INPUT);
-    digitalWrite(SOFT_SPI_SCK_PIN, LOW);
-}
 
 // Forward declarations
 void publishStatus();
@@ -1257,12 +1206,14 @@ void waitForTagRemoval() {
 }
 
 void nfcInit() {
-    Serial.println(F("\n[NFC] Initializing RC522 (Software SPI)..."));
+    Serial.println(F("\n[NFC] Initializing RC522..."));
 
-    // Initialize RC522 with Software SPI
-    // SPI.begin() not needed - using bit-banged SPI on custom pins
+    // Initialize hardware SPI first
+    SPI.begin();
+    
+    // Initialize RC522
     mfrc522.PCD_Init();
-    delay(500); // Wait longer for RC522 to be ready with Software SPI
+    delay(500); // Wait for RC522 to be ready
 
     // Set maximum antenna gain
     mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
@@ -1277,7 +1228,8 @@ void nfcInit() {
 
     if (version == 0x00 || version == 0xFF) {
         Serial.println(F("[NFC] WARNING: RC522 not found or not responding!"));
-        Serial.println(F("[NFC] Check wiring: SS=D8, RST=D3, SCK=D1, MISO=D2, MOSI=D7"));
+        Serial.println(F("[NFC] Check wiring: SS=D8, RST=D3"));
+        Serial.println(F("[NFC] Note: On HW-364A, SPI shares pins with OLED I2C"));
         isNfcConnected = false;
         displayShowMessage("NFC Error", "RC522 not found", 3000);
     } else {
