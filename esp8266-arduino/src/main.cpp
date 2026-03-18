@@ -68,16 +68,13 @@
 #define NFC_ACTIVITY_TIMEOUT 5000     // 5 seconds timeout for NFC operations
 #define SECTOR_COUNT 16               // Number of sectors to read (for 1K cards)
 
-// Hardware Configuration - NodeMCU LoLin V3 (HW-364A)
-// OLED is fixed on board using I2C on GPIO14/12 (D5/D6) - CONFIRMED by I2C scan
-// RC522 uses hardware SPI which shares GPIO14/12 (SCK/MISO) - designed to work together
-#define RC522_SS_PIN  15  // D8 (GPIO 15) - SS/CS (hardware SPI CS)
-#define RC522_RST_PIN 2   // D4 (GPIO 2) - RST (disconnect during boot)
+// Hardware Configuration - NodeMCU LoLin V3
+#define RC522_SS_PIN  4   // D2 (GPIO 4)
+#define RC522_RST_PIN 5   // D1 (GPIO 5)
 
-// LCD Display Configuration (SSD1306 128x64) - Fixed on HW-364A
-// CONFIRMED: HW-364A OLED uses GPIO14/12 (D5/D6), address 0x3C
-#define OLED_SDA_PIN 14   // D5 (GPIO 14) - I2C SDA (fixed on HW-364A)
-#define OLED_SCL_PIN 12   // D6 (GPIO 12) - I2C SCL (fixed on HW-364A)
+// LCD Display Configuration (SSD1306 128x64)
+#define OLED_SDA_PIN 14    // D4 (GPIO 2)
+#define OLED_SCL_PIN 12   // D5 (GPIO 14)
 #define OLED_RESET_PIN -1 // RST (GPIO 16)
 #define OLED_ADDRESS 0x3C
 
@@ -87,7 +84,6 @@
 // ============================================================================
 // GLOBAL VARIABLES
 // ============================================================================
-
 // Hardware instances
 ESP8266WiFiMulti wifiMulti;
 WiFiClientSecure wifiClient;
@@ -144,6 +140,27 @@ void waitForTagRemoval();
 // LCD DISPLAY FUNCTIONS
 // ============================================================================
 
+/**
+ * Restore SPI state after I2C (OLED) use.
+ * Critical when SPI (RC522) and I2C (OLED) share pins 12 and 14.
+ * Same pattern as MicroPython: rfid.init() after oled.show()
+ */
+void restoreSpiAfterI2c() {
+    // Small delay to ensure I2C transaction is complete
+    delayMicroseconds(100);
+    
+    // Re-initialize SPI bus
+    SPI.end();
+    SPI.begin();
+    
+    // Re-initialize RC522
+    mfrc522.PCD_Init();
+    mfrc522.PCD_SetAntennaGain(mfrc522.RxGain_max);
+    
+    // Wait for RC522 to be ready
+    delay(50);
+}
+
 void displayInit() {
     Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
 
@@ -159,7 +176,9 @@ void displayInit() {
     display.println(F("OneTapGo v" DEVICE_VERSION));
     display.println(F("Initializing..."));
     display.display();
-    delay(500); // Reduced from 1000ms
+    
+    // Restore SPI after I2C use
+    restoreSpiAfterI2c();
 }
 
 void displayShowState(DeviceState state, const char* extraInfo = nullptr) {
@@ -262,6 +281,9 @@ void displayShowState(DeviceState state, const char* extraInfo = nullptr) {
     }
 
     display.display();
+    
+    // Restore SPI after I2C use
+    restoreSpiAfterI2c();
 }
 
 void displayShowMessage(const char* title, const char* message, int duration = 2000) {
@@ -273,6 +295,10 @@ void displayShowMessage(const char* title, const char* message, int duration = 2
     display.setTextSize(1);
     display.println(message);
     display.display();
+    
+    // Restore SPI after I2C use
+    restoreSpiAfterI2c();
+    
     delay(duration);
 }
 
@@ -289,6 +315,9 @@ void displayShowQR(const char* ssid, const char* password) {
     display.println();
     display.println(F("Connect & configure"));
     display.display();
+    
+    // Restore SPI after I2C use
+    restoreSpiAfterI2c();
 }
 
 // ============================================================================
@@ -1208,9 +1237,10 @@ void waitForTagRemoval() {
 void nfcInit() {
     Serial.println(F("\n[NFC] Initializing RC522..."));
 
-    // Initialize hardware SPI first
+    // Initialize hardware SPI - REQUIRED for RC522
+    // SPI shares pins 12, 13, 14 with OLED I2C (bit-banged)
     SPI.begin();
-    
+
     // Initialize RC522
     mfrc522.PCD_Init();
     delay(500); // Wait for RC522 to be ready
@@ -1326,7 +1356,7 @@ void systemLoop() {
         readMode != lastKnownReadMode ||
         hasPendingWriteCommand != lastKnownHasPendingCommand);
     
-    if (millis() - lastDisplayUpdate > 1000 || stateChanged) {
+    if (millis() - lastDisplayUpdate > 2000 || stateChanged) {
         lastDisplayUpdate = millis();
         lastKnownState = currentState;
         lastKnownWifi = isWifiConnected;
@@ -1335,14 +1365,14 @@ void systemLoop() {
         lastKnownReadMode = readMode;
         lastKnownHasPendingCommand = hasPendingWriteCommand;
         
-        Serial.print(F("[DISPLAY] Updating - Mode: "));
-        Serial.print(hasPendingWriteCommand ? F("Writer") : (readMode ? F("Reader") : F("Standby")));
-        Serial.print(F(", WiFi: "));
-        Serial.print(isWifiConnected ? F("OK") : F("NO"));
-        Serial.print(F(", MQTT: "));
-        Serial.print(isMqttConnected ? F("OK") : F("NO"));
-        Serial.print(F(", NFC: "));
-        Serial.println(isNfcConnected ? F("OK") : F("NO"));
+        // Serial.print(F("[DISPLAY] Updating - Mode: "));
+        // Serial.print(hasPendingWriteCommand ? F("Writer") : (readMode ? F("Reader") : F("Standby")));
+        // Serial.print(F(", WiFi: "));
+        // Serial.print(isWifiConnected ? F("OK") : F("NO"));
+        // Serial.print(F(", MQTT: "));
+        // Serial.print(isMqttConnected ? F("OK") : F("NO"));
+        // Serial.print(F(", NFC: "));
+        // Serial.println(isNfcConnected ? F("OK") : F("NO"));
         
         displayShowState(currentState);
     }
