@@ -11,6 +11,11 @@
 LcdManager g_lcd;
 
 namespace {
+void prepareI2cForDisplay() {
+    Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
+    delayMicroseconds(I2C_TO_SPI_DELAY_US);
+}
+
 String truncateText(const String& value, size_t maxLen) {
     if (value.length() <= maxLen) {
         return value;
@@ -64,7 +69,7 @@ bool LcdManager::begin() {
     Serial.println(F("[LCD] Disabled by configuration"));
     return false;
 #else
-    Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
+    prepareI2cForDisplay();
 
     if (!g_display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
         Serial.println(F("[LCD] SSD1306 allocation failed"));
@@ -97,6 +102,8 @@ void LcdManager::showState() {
     if (!_initialized || !lcdCanUpdate()) {
         return;
     }
+
+    prepareI2cForDisplay();
 
     DeviceState currentState = (DeviceState)g_system.state;
     unsigned long now = millis();
@@ -150,6 +157,7 @@ void LcdManager::showMessage(const char* title, const char* message, unsigned lo
         return;
     }
 
+    prepareI2cForDisplay();
     _showCenteredMessage(title, message, true);
 
     if (duration > 0) {
@@ -162,6 +170,7 @@ void LcdManager::showQrCode(const char* ssid, const char* password) {
         return;
     }
 
+    prepareI2cForDisplay();
     g_display.clearDisplay();
     g_display.setTextSize(1);
     g_display.setTextColor(SSD1306_WHITE);

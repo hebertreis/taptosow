@@ -130,6 +130,7 @@ void Coordinator::loop() {
         _handleNfcJob();
     } else {
         nfcReleaseLock();
+        lcdResumeUpdates();
         if (g_system.legacyReadMode && g_system.isNfcConnected) {
             _handleLegacyReadMode();
         } else {
@@ -218,6 +219,8 @@ void Coordinator::_handleLegacyReadMode() {
 
     Serial.println(F("[NFC] Legacy read mode detected a tag"));
     stateSet(STATE_NFC_ACTIVE);
+    g_lcd.forceUpdate();
+    lcdSuspendUpdates();
 
     NfcCardInfo card;
     String error;
@@ -238,6 +241,8 @@ void Coordinator::_handleLegacyReadMode() {
     }
 
     g_system.stateHoldUntil = millis() + LCD_HOLD_INTERVAL_MS;
+    lcdResumeUpdates();
+    g_lcd.forceUpdate();
     g_mqttManager.publishStatus(true);
     _legacyCooldownUntil = millis() + 1500UL;
 }
@@ -266,6 +271,7 @@ void Coordinator::_prepareActiveJob() {
 
     stateSet(STATE_NFC_WAITING);
     g_lcd.forceUpdate();
+    lcdSuspendUpdates();
     g_mqttManager.publishStatus(true);
 }
 
@@ -404,6 +410,7 @@ void Coordinator::_finishJob(DeviceState finalState) {
     Serial.print(F("[NFC] Finish job finalState="));
     Serial.println(deviceStateName(finalState));
 
+    lcdResumeUpdates();
     stateSet(finalState);
     g_system.stateHoldUntil = millis() + LCD_HOLD_INTERVAL_MS;
     clearNfcJob();

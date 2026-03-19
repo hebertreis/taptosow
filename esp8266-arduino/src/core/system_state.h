@@ -104,6 +104,7 @@ struct NfcJob {
 struct ResourceLocks {
     volatile bool nfcLocked = false;
     volatile unsigned long nfcLockUntil = 0;
+    volatile bool lcdSuspended = false;
 };
 
 // ============================================================================
@@ -241,6 +242,16 @@ bool nfcHasLock();
  * Check if LCD can update (not paused for NFC)
  */
 bool lcdCanUpdate();
+
+/**
+ * Suspend periodic LCD updates while NFC is using the shared pins.
+ */
+void lcdSuspendUpdates();
+
+/**
+ * Resume LCD updates after NFC finishes using the shared pins.
+ */
+void lcdResumeUpdates();
 
 // ============================================================================
 // State Helper Functions

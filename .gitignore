@@ -68,3 +68,19 @@ node_modules/
 # dataconnect generated files
 .dataconnect
 .DS_Store
+
+# ESP8266 Arduino Secrets
+**/secrets.h
+**/config.local.h
+**/credentials.json
+**/wifi_creds.h
+
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.piopackages/
+
+# Arduino IDE
+*.tmp
+*.bak

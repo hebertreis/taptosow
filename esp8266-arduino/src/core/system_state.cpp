@@ -169,6 +169,10 @@ bool nfcHasLock() {
 }
 
 bool lcdCanUpdate() {
+    if (g_system.locks.lcdSuspended) {
+        return false;
+    }
+
     if (g_system.locks.nfcLocked) {
         if (millis() > g_system.locks.nfcLockUntil) {
             g_system.locks.nfcLocked = false;
@@ -179,6 +183,14 @@ bool lcdCanUpdate() {
     }
     
     return true;
+}
+
+void lcdSuspendUpdates() {
+    g_system.locks.lcdSuspended = true;
+}
+
+void lcdResumeUpdates() {
+    g_system.locks.lcdSuspended = false;
 }
 
 // ============================================================================
