@@ -18,9 +18,9 @@
  * - managers/lcd_manager.* : LCD/SSD1306 display
  * - managers/mqtt_manager.*: MQTT client and commands
  * - managers/wifi_manager.*: WiFi connectivity
- * - config/*.h             : Configuration headers
+ * - config headers         : Configuration headers
  * 
- * @version 4.0.0
+ * @version 5.0.0
  * @author OneTapGo by CRE8 Tecnologia
  */
 

@@ -9,37 +9,43 @@
 // ============================================================================
 // MQTT Broker Configuration
 // ============================================================================
-#define MQTT_HOST             "m191dfff.ala.us-east-1.emqxsl.com"
-#define MQTT_PORT             8883
-#define MQTT_USERNAME         "onetapgo"
-#define MQTT_PASSWORD         "onetapgo"
-#define MQTT_USE_TLS          true
-#define MQTT_CLIENT_PREFIX    "onetapgo_device"
+#define MQTT_HOST               "m191dfff.ala.us-east-1.emqxsl.com"
+#define MQTT_PORT               8883
+#define MQTT_USERNAME           "onetapgo"
+#define MQTT_PASSWORD           "onetapgo"
+#define MQTT_USE_TLS            true
+#define MQTT_CLIENT_PREFIX      "onetapgo_device"
+
+// Keep the MQTT frame compact on ESP8266. Status/heartbeat are small and
+// results only carry a single URI payload plus card summary.
+#define MQTT_BUFFER_SIZE_BYTES   1024
 
 // ============================================================================
 // MQTT Timing
 // ============================================================================
-#define MQTT_RECONNECT_DELAY_MS   5000   // Delay between reconnect attempts
-#define MQTT_KEEPALIVE_SEC        60     // MQTT keepalive interval
-#define MQTT_SOCKET_TIMEOUT_SEC   30     // Socket timeout
-#define HEARTBEAT_INTERVAL_MS     30000  // Heartbeat publish interval
+#define MQTT_RECONNECT_DELAY_MS   5000UL
+#define MQTT_KEEPALIVE_SEC        60
+#define MQTT_SOCKET_TIMEOUT_SEC   30
+#define HEARTBEAT_INTERVAL_MS     30000UL
 
 // ============================================================================
 // MQTT Topics (base: onetapgo/{deviceId})
 // ============================================================================
-// - /status     - Device status updates
-// - /heartbeat  - Heartbeat messages
-// - /command    - Commands from admin
-// - /result     - Write results and tag data
-// - /debug      - Debug and mode status
+// - /status     - Retained device snapshot
+// - /heartbeat  - Periodic live status
+// - /command    - Commands from the web interface
+// - /result     - NFC job results and tag reads
+// - /debug      - Debug and compatibility flags
 
 // ============================================================================
 // MQTT Command Types
 // ============================================================================
-// - write_tag:      { "type": "write_tag", "tenantId": "xxx", "sectorId": "yyy", "url": "..." }
+// - write:          { "type": "write", "requestId": "...", "url": "https://...", "timeoutSec": 30, "lock": false }
+// - write_tag:      compatibility alias for write
+// - read:           { "type": "read", "requestId": "...", "timeoutSec": 20 }
+// - read_tag:       compatibility alias for read
 // - set_debug:      { "type": "set_debug", "enabled": true/false }
-// - set_read_mode:  { "type": "set_read_mode", "enabled": true/false }
-// - read_tag:       { "type": "read_tag" }
+// - set_read_mode:  legacy UI compatibility flag only
 // - status:         { "type": "status" }
 // - restart:        { "type": "restart" }
 

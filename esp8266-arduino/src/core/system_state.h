@@ -12,6 +12,7 @@
 #ifndef SYSTEM_STATE_H
 #define SYSTEM_STATE_H
 
+#include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
 #include <PubSubClient.h>
@@ -24,6 +25,7 @@
 
 // Configuration headers
 #include "config/hardware_config.h"
+#include "config/wifi_config.h"
 #include "config/mqtt_config.h"
 #include "config/nfc_config.h"
 #include "config/version.h"
@@ -32,33 +34,76 @@
 // Device States
 // ============================================================================
 enum DeviceState {
+    STATE_BOOT,
     STATE_IDLE,
-    STATE_WAITING_TAG,
-    STATE_TAG_DETECTED,
-    STATE_WRITING,
+    STATE_WIFI_SETUP,
+    STATE_NFC_WAITING,
+    STATE_NFC_ACTIVE,
     STATE_SUCCESS,
-    STATE_ERROR,
-    STATE_CONFIG_MODE,
-    STATE_READ_MODE
+    STATE_ERROR
 };
 
 // ============================================================================
-// Operation Mode
+// NFC Command Types
 // ============================================================================
-enum OperationMode {
-    MODE_STANDBY,     // No pending operations
-    MODE_WRITER,      // Waiting for write command
-    MODE_READER       // Auto-transmitting tag data
+enum NfcCommandType {
+    NFC_CMD_NONE,
+    NFC_CMD_READ,
+    NFC_CMD_WRITE
+};
+
+// ============================================================================
+// NFC Card Details
+// ============================================================================
+struct __attribute__((aligned(4))) NfcCardInfo {
+    String uid = "";
+    String piccTypeName = "";
+    String family = "";
+    String brand = "";
+    String ndefUrl = "";
+    uint32_t capacityBytes = 0;
+    uint8_t uidLength = 0;
+    bool formatted = false;
+    bool hasNdef = false;
+    bool lockRequested = false;
+    bool lockApplied = false;
+    
+    // Clear all fields to default values
+    void clear() {
+        uid = "";
+        piccTypeName = "";
+        family = "";
+        brand = "";
+        ndefUrl = "";
+        capacityBytes = 0;
+        uidLength = 0;
+        formatted = false;
+        hasNdef = false;
+        lockRequested = false;
+        lockApplied = false;
+    }
+};
+
+// ============================================================================
+// NFC Job
+// ============================================================================
+struct NfcJob {
+    bool active = false;
+    NfcCommandType command = NFC_CMD_NONE;
+    String requestId = "";
+    String url = "";
+    bool lockCard = false;
+    unsigned long timeoutMs = NFC_DEFAULT_COMMAND_TIMEOUT_SEC * 1000UL;
+    unsigned long startedAt = 0;
+    bool timeoutReported = false;
 };
 
 // ============================================================================
 // Resource Locks (for SPI/I2C coordination)
 // ============================================================================
 struct ResourceLocks {
-    volatile bool nfcLocked = false;      // NFC has exclusive access
-    volatile bool lcdLocked = false;      // LCD is updating
-    volatile unsigned long nfcLockUntil = 0;  // When NFC lock expires
-    volatile unsigned long lcdPauseUntil = 0; // When LCD can resume
+    volatile bool nfcLocked = false;
+    volatile unsigned long nfcLockUntil = 0;
 };
 
 // ============================================================================
@@ -68,36 +113,42 @@ struct SystemState {
     // Device identification
     String deviceId = "";
     String mqttTopicBase = "";
+    String portalApSsid = "";
+    String portalApPassword = "";
     
     // Connection states
     volatile bool isWifiConnected = false;
     volatile bool isMqttConnected = false;
     volatile bool isNfcConnected = false;
+    volatile bool portalActive = false;
     
-    // Operation state
-    volatile DeviceState state = STATE_IDLE;
-    volatile OperationMode mode = MODE_STANDBY;
+    // Active state
+    volatile DeviceState state = STATE_BOOT;
     volatile bool debugMode = false;
-    volatile bool readMode = true;
+    volatile bool legacyReadMode = false;
     
-    // Pending command data
-    volatile bool hasPendingWriteCommand = false;
-    String pendingTenantId = "";
-    String pendingSectorId = "";
-    String pendingUrl = "";
-
+    // Network details
+    String wifiSsid = "";
+    String wifiIp = "";
+    int16_t wifiRssi = 0;
+    
     // Timing
     volatile unsigned long lastHeartbeat = 0;
-    volatile unsigned long lastLcdUpdate = 0;
     volatile unsigned long lastNfcPoll = 0;
     volatile unsigned long lastActivity = 0;
+    volatile unsigned long lastReconnectAttempt = 0;
+    volatile unsigned long stateHoldUntil = 0;
     
-    // NFC timeout tracking
-    volatile unsigned long nfcWaitStartTime = 0;  // When started waiting for tag
-    volatile bool nfcTimeoutWarningSent = false;   // Warning already sent
-
     // NFC
     byte nfcFirmwareVersion = 0x00;
+    NfcJob nfcJob;
+    NfcCardInfo lastCard;
+    NfcCommandType lastCompletedCommand = NFC_CMD_NONE;
+    
+    // Error tracking
+    String lastErrorSource = "";
+    String lastErrorCode = "";
+    String lastErrorMessage = "";
 
     // Resource coordination
     ResourceLocks locks;
@@ -138,14 +189,33 @@ void stateSet(DeviceState newState);
 DeviceState stateGet();
 
 /**
- * Set operation mode
+ * Set last error information
  */
-void modeSet(OperationMode newMode);
+void setLastError(const String& source, const String& code, const String& message);
 
 /**
- * Get current operation mode
+ * Clear last error information
  */
-OperationMode modeGet();
+void clearLastError();
+
+/**
+ * Start a new NFC job
+ */
+void startNfcJob(NfcCommandType command,
+                 const String& requestId,
+                 const String& url,
+                 unsigned long timeoutMs,
+                 bool lockCard);
+
+/**
+ * Clear current NFC job
+ */
+void clearNfcJob();
+
+/**
+ * Check if an NFC job is active
+ */
+bool nfcJobActive();
 
 // ============================================================================
 // Resource Coordination Functions
@@ -172,16 +242,6 @@ bool nfcHasLock();
  */
 bool lcdCanUpdate();
 
-/**
- * Force LCD pause for NFC operation
- */
-void lcdPauseForNfc();
-
-/**
- * Resume LCD updates after NFC operation
- */
-void lcdResumeAfterNfc();
-
 // ============================================================================
 // State Helper Functions
 // ============================================================================
@@ -192,13 +252,35 @@ void lcdResumeAfterNfc();
 bool isDeviceReady();
 
 /**
+ * Human readable state name
+ */
+String deviceStateName(DeviceState state);
+
+/**
+ * Human readable NFC command name
+ */
+String nfcCommandName(NfcCommandType command);
+
+/**
  * Get status JSON
  */
 String getStatusJson();
 
 /**
+ * Serialize status JSON directly to a buffer
+ * @return bytes written (0 on failure)
+ */
+size_t serializeStatusJson(char* buffer, size_t bufferSize);
+
+/**
  * Get heartbeat JSON
  */
 String getHeartbeatJson();
+
+/**
+ * Serialize heartbeat JSON directly to a buffer
+ * @return bytes written (0 on failure)
+ */
+size_t serializeHeartbeatJson(char* buffer, size_t bufferSize);
 
 #endif // SYSTEM_STATE_H

@@ -1,123 +1,209 @@
 /**
  * @file mqtt_manager.cpp
- * @brief MQTT client manager implementation
+ * @brief MQTT client manager implementation for OneTapGo
  */
 
 #include "managers/mqtt_manager.h"
 #include "managers/lcd_manager.h"
-#include "managers/nfc_manager.h"
+
+#include <cstring>
+
+namespace {
+
+constexpr size_t kCommandJsonSize = 256;
+constexpr size_t kResultJsonSize = 640;
+constexpr size_t kStatusPayloadSize = 640;
+constexpr size_t kHeartbeatPayloadSize = 256;
+constexpr size_t kResultPayloadSize = 768;
+
+String makeOfflineStatusPayload() {
+    StaticJsonDocument<128> doc;
+    doc["type"] = "status";
+    doc["deviceId"] = g_system.deviceId;
+    doc["state"] = "offline";
+    doc["ready"] = false;
+    doc["wifiConnected"] = false;
+    doc["mqttConnected"] = false;
+    doc["nfcReady"] = g_system.isNfcConnected;
+    doc["timestamp"] = millis();
+
+    String payload;
+    payload.reserve(measureJson(doc) + 1);
+    serializeJson(doc, payload);
+    return payload;
+}
+
+void addBaseResultFields(JsonDocument& doc,
+                         const char* resultType,
+                         const String& requestId,
+                         const String& command,
+                         bool success) {
+    doc["type"] = resultType;
+    doc["deviceId"] = g_system.deviceId;
+    doc["requestId"] = requestId;
+    doc["command"] = command;
+    doc["success"] = success;
+    doc["state"] = deviceStateName(stateGet());
+    doc["timestamp"] = millis();
+    doc["uptime"] = millis();
+    doc["freeHeap"] = ESP.getFreeHeap();
+}
+
+bool parseBoolValue(JsonVariantConst value, bool defaultValue) {
+    if (value.isNull()) {
+        return defaultValue;
+    }
+    if (value.is<bool>()) {
+        return value.as<bool>();
+    }
+    if (value.is<int>()) {
+        return value.as<int>() != 0;
+    }
+    if (value.is<const char*>()) {
+        String text = value.as<const char*>();
+        text.trim();
+        text.toLowerCase();
+        if (text == "true" || text == "1" || text == "yes" || text == "on") {
+            return true;
+        }
+        if (text == "false" || text == "0" || text == "no" || text == "off") {
+            return false;
+        }
+    }
+    return defaultValue;
+}
+
+bool workflowBusy() {
+    if (nfcJobActive()) {
+        return true;
+    }
+
+    if ((g_system.state == STATE_SUCCESS || g_system.state == STATE_ERROR) &&
+        g_system.stateHoldUntil != 0 &&
+        ((long)(millis() - g_system.stateHoldUntil) < 0)) {
+        return true;
+    }
+
+    return false;
+}
+
+} // namespace
 
 MqttManager g_mqttManager;
 
-// ============================================================================
-// MQTT Callback (C-style wrapper)
-// ============================================================================
 void mqttCallbackWrapper(char* topic, byte* payload, unsigned int length) {
     g_mqttManager._handleMessage(topic, payload, length);
 }
 
-// ============================================================================
-// MQTT Manager Implementation
-// ============================================================================
-
 void MqttManager::begin(const String& deviceId, const String& mqttTopicBase) {
     _deviceId = deviceId;
     _mqttTopicBase = mqttTopicBase;
-    
-    Serial.println(F("\n[MQTT] Initializing..."));
-    
-    // Configure secure WiFi client
-    g_wifiClient.setInsecure();
-    g_wifiClient.setTimeout(10);
-    
-    // Configure MQTT client
+    _statusTopic = _mqttTopicBase + "/status";
+    _heartbeatTopic = _mqttTopicBase + "/heartbeat";
+    _commandTopic = _mqttTopicBase + "/command";
+    _resultTopic = _mqttTopicBase + "/result";
+    _lastHeartbeat = 0;
+    _lastReconnect = 0;
+    _reconnectAttempts = 0;
+
+    if (MQTT_USE_TLS) {
+        g_wifiClient.setInsecure();
+    }
+    g_wifiClient.setTimeout(MQTT_SOCKET_TIMEOUT_SEC);
+
     g_mqttClient.setClient(g_wifiClient);
     g_mqttClient.setServer(MQTT_HOST, MQTT_PORT);
     g_mqttClient.setCallback(mqttCallbackWrapper);
-    g_mqttClient.setBufferSize(1024);
+    g_mqttClient.setBufferSize(MQTT_BUFFER_SIZE_BYTES);
     g_mqttClient.setKeepAlive(MQTT_KEEPALIVE_SEC);
     g_mqttClient.setSocketTimeout(MQTT_SOCKET_TIMEOUT_SEC);
-    
-    Serial.print(F("[MQTT] Server: "));
-    Serial.println(MQTT_HOST);
-    Serial.print(F("[MQTT] Port: "));
-    Serial.println(MQTT_PORT);
-    Serial.print(F("[MQTT] Client ID: "));
-    Serial.println(_deviceId);
+
+    g_system.isMqttConnected = false;
+
+    Serial.print(F("[MQTT] begin deviceId="));
+    Serial.print(_deviceId);
+    Serial.print(F(" topicBase="));
+    Serial.println(_mqttTopicBase);
+
+    if (g_system.isWifiConnected) {
+        connect();
+    }
 }
 
 void MqttManager::loop() {
+    const unsigned long now = millis();
+
     if (!g_mqttClient.connected()) {
-        // Connection lost
-        static bool wasConnected = true;
-        if (wasConnected) {
-            Serial.println(F("[MQTT] Connection lost"));
+        if (g_system.isMqttConnected) {
             g_system.isMqttConnected = false;
-            wasConnected = false;
-            g_lcd.forceUpdate();
         }
-        
-        // Reconnect
-        if (millis() - _lastReconnect > MQTT_RECONNECT_DELAY_MS) {
-            _lastReconnect = millis();
-            
-            if (connect()) {
-                wasConnected = true;
-                g_lcd.forceUpdate();
-            } else {
-                _reconnectAttempts++;
-                Serial.print(F("[MQTT] Reconnect attempt "));
-                Serial.print(_reconnectAttempts);
-                Serial.println(F(" failed"));
-                
-                if (_reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-                    Serial.println(F("[MQTT] Max attempts reached"));
-                    _reconnectAttempts = 0;
-                }
-            }
-        }
+        connect();
         return;
     }
-    
-    // Process MQTT messages
+
+    g_system.isMqttConnected = true;
     g_mqttClient.loop();
-    
-    // Send heartbeat
-    if (millis() - _lastHeartbeat > HEARTBEAT_INTERVAL_MS) {
-        _lastHeartbeat = millis();
-        g_system.lastHeartbeat = _lastHeartbeat;
+
+    if (now - _lastHeartbeat >= HEARTBEAT_INTERVAL_MS) {
         publishHeartbeat();
     }
 }
 
 bool MqttManager::connect() {
-    Serial.print(F("[MQTT] Connecting..."));
-    
-    // Last will message
-    String willTopic = _mqttTopicBase + "/status";
-    String willMessage = "{\"status\":\"offline\",\"timestamp\":" + String(millis()) + "}";
-    
-    if (g_mqttClient.connect(_deviceId.c_str(), MQTT_USERNAME, MQTT_PASSWORD,
-                            willTopic.c_str(), 1, true, willMessage.c_str())) {
-        Serial.println(F(" OK"));
-        
-        // Subscribe to command topic
-        String commandTopic = _mqttTopicBase + "/command";
-        g_mqttClient.subscribe(commandTopic.c_str(), 1);
-        Serial.print(F("[MQTT] Subscribed to: "));
-        Serial.println(commandTopic);
-        
+    if (g_mqttClient.connected()) {
         g_system.isMqttConnected = true;
-        _reconnectAttempts = 0;
-        
-        publishStatus();
         return true;
-    } else {
-        Serial.print(F(" FAILED - Code: "));
-        Serial.println(g_mqttClient.state());
+    }
+
+    if (!g_system.isWifiConnected) {
         g_system.isMqttConnected = false;
         return false;
     }
+
+    const unsigned long now = millis();
+    if (_lastReconnect != 0 && (now - _lastReconnect) < MQTT_RECONNECT_DELAY_MS) {
+        return false;
+    }
+    _lastReconnect = now;
+    g_system.lastReconnectAttempt = now;
+
+    const String willTopic = _statusTopic;
+    const String willPayload = makeOfflineStatusPayload();
+    Serial.print(F("[MQTT] Connecting host="));
+    Serial.print(MQTT_HOST);
+    Serial.print(F(" port="));
+    Serial.print(MQTT_PORT);
+    Serial.print(F(" clientId="));
+    Serial.println(_deviceId);
+    const bool connected = g_mqttClient.connect(
+        _deviceId.c_str(),
+        MQTT_USERNAME,
+        MQTT_PASSWORD,
+        willTopic.c_str(),
+        1,
+        true,
+        willPayload.c_str()
+    );
+
+    if (!connected) {
+        Serial.print(F("[MQTT] Connect failed state="));
+        Serial.println(g_mqttClient.state());
+        g_system.isMqttConnected = false;
+        if (_reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            ++_reconnectAttempts;
+        }
+        return false;
+    }
+
+    _reconnectAttempts = 0;
+    g_system.isMqttConnected = true;
+
+    g_mqttClient.subscribe(_commandTopic.c_str(), 1);
+    Serial.print(F("[MQTT] Connected, subscribed "));
+    Serial.println(_commandTopic);
+
+    publishStatus(true);
+    return true;
 }
 
 bool MqttManager::isConnected() {
@@ -125,246 +211,348 @@ bool MqttManager::isConnected() {
 }
 
 bool MqttManager::publish(const String& topic, const String& payload, bool retained) {
-    if (!g_system.isMqttConnected) {
-        Serial.println(F("[MQTT] Cannot publish - not connected"));
-        return false;
-    }
-    
-    if (g_mqttClient.publish(topic.c_str(), payload.c_str(), retained)) {
-        Serial.print(F("[MQTT] Published to "));
-        Serial.print(topic);
-        Serial.print(F(": "));
-        Serial.println(payload);
-        return true;
-    } else {
-        Serial.print(F("[MQTT] Publish failed to "));
-        Serial.println(topic);
-        return false;
-    }
+    return publish(topic, payload.c_str(), retained);
 }
 
-void MqttManager::publishStatus() {
-    publish(_mqttTopicBase + "/status", getStatusJson());
+bool MqttManager::publish(const String& topic, const char* payload, bool retained) {
+    if (!g_mqttClient.connected()) {
+        Serial.print(F("[MQTT] Skip publish disconnected topic="));
+        Serial.println(topic);
+        g_system.isMqttConnected = false;
+        return false;
+    }
+
+    Serial.print(F("[MQTT] Publish topic="));
+    Serial.print(topic);
+    Serial.print(F(" bytes="));
+    Serial.print(payload != nullptr ? strlen(payload) : 0);
+    Serial.print(F(" retained="));
+    Serial.println(retained ? F("1") : F("0"));
+
+    const bool ok = g_mqttClient.publish(topic.c_str(), payload != nullptr ? payload : "", retained);
+    if (!ok) {
+        Serial.print(F("[MQTT] Publish failed state="));
+        Serial.println(g_mqttClient.state());
+        g_system.isMqttConnected = g_mqttClient.connected();
+    }
+    return ok;
+}
+
+bool MqttManager::_publishDoc(const String& topic, JsonDocument& doc, bool retained) {
+    char payload[kResultPayloadSize] = {0};
+    const size_t length = serializeJson(doc, payload, sizeof(payload));
+    if (length == 0 || length >= sizeof(payload)) {
+        Serial.println(F("[MQTT] Failed to serialize JSON payload"));
+        return false;
+    }
+    return publish(topic, payload, retained);
+}
+
+void MqttManager::publishStatus(bool retained) {
+    char payload[kStatusPayloadSize] = {0};
+    const size_t length = serializeStatusJson(payload, sizeof(payload));
+    if (length == 0 || length >= sizeof(payload)) {
+        Serial.println(F("[MQTT] Failed to serialize status payload"));
+        return;
+    }
+    publish(_statusTopic, payload, retained);
 }
 
 void MqttManager::publishHeartbeat() {
-    publish(_mqttTopicBase + "/heartbeat", getHeartbeatJson());
+    _lastHeartbeat = millis();
+    g_system.lastHeartbeat = _lastHeartbeat;
+    char payload[kHeartbeatPayloadSize] = {0};
+    const size_t length = serializeHeartbeatJson(payload, sizeof(payload));
+    if (length == 0 || length >= sizeof(payload)) {
+        Serial.println(F("[MQTT] Failed to serialize heartbeat payload"));
+        return;
+    }
+    publish(_heartbeatTopic, payload, false);
 }
 
-void MqttManager::publishTagData(const String& tagId, const String& ndefUrl, const String& sectorData) {
-    StaticJsonDocument<1024> doc;
-    
-    doc["type"] = "tag_data";
-    doc["deviceId"] = _deviceId;
-    doc["serialNumber"] = tagId;
-    doc["timestamp"] = millis();
-    
-    // NDEF section
-    JsonObject ndef = doc.createNestedObject("ndef");
-    if (ndefUrl.length() > 0) {
-        ndef["hasMessage"] = true;
-        ndef["url"] = ndefUrl;
+void MqttManager::publishReadResult(const NfcCardInfo& card, const String& requestId) {
+    StaticJsonDocument<kResultJsonSize> doc;
+    addBaseResultFields(doc, "tag_read", requestId, "read", true);
+    doc["uid"] = card.uid;
+    doc["tagType"] = card.piccTypeName;
+    doc["family"] = card.family;
+    doc["brand"] = card.brand;
+    doc["capacityBytes"] = card.capacityBytes;
+    doc["ndefUrl"] = card.ndefUrl;
+    doc["hasNdef"] = card.hasNdef;
+    doc["code"] = "ok";
+    _publishDoc(_resultTopic, doc, false);
+}
+
+void MqttManager::publishWriteResult(const NfcCardInfo& card,
+                                     const String& requestId,
+                                     const String& writtenUrl,
+                                     bool success,
+                                     const String& errorCode,
+                                     const String& message) {
+    StaticJsonDocument<kResultJsonSize> doc;
+    addBaseResultFields(doc, success ? "write_success" : "write_error", requestId, "write", success);
+    doc["uid"] = card.uid;
+    doc["tagType"] = card.piccTypeName;
+    doc["family"] = card.family;
+    doc["brand"] = card.brand;
+    doc["capacityBytes"] = card.capacityBytes;
+    doc["writtenUrl"] = writtenUrl;
+    doc["lockRequested"] = card.lockRequested;
+    doc["lockApplied"] = card.lockApplied;
+
+    if (!success) {
+        doc["code"] = errorCode;
+        doc["message"] = message;
+    } else if (message.length() > 0) {
+        doc["code"] = "ok";
+        doc["message"] = message;
     } else {
-        ndef["hasMessage"] = false;
+        doc["code"] = "ok";
     }
-    
-    // Sector data
-    if (sectorData.length() > 0) {
-        doc["sectorData"] = sectorData;
-    }
-    
-    // Debug data if enabled
-    if (g_system.debugMode) {
-        doc["debug"] = true;
-        doc["freeHeap"] = ESP.getFreeHeap();
-    }
-    
-    String payload;
-    serializeJson(doc, payload);
-    
-    publish(_mqttTopicBase + "/result", payload);
+    _publishDoc(_resultTopic, doc, false);
 }
 
-void MqttManager::publishWriteResult(bool success, const String& urlOrError) {
-    StaticJsonDocument<256> doc;
-    
-    doc["type"] = success ? "write_success" : "write_error";
-    doc["deviceId"] = _deviceId;
-    doc["success"] = success;
-    
-    if (success) {
-        doc["url"] = urlOrError;
-        doc["error"] = "";
-    } else {
-        doc["error"] = urlOrError;
-    }
-    
-    doc["timestamp"] = millis();
-    
-    String payload;
-    serializeJson(doc, payload);
-    
-    publish(_mqttTopicBase + "/result", payload);
-}
-
-void MqttManager::publishDebugStatus() {
-    StaticJsonDocument<256> doc;
-    
-    doc["type"] = "debug_status";
-    doc["deviceId"] = _deviceId;
-    doc["debugEnabled"] = g_system.debugMode;
-    doc["timestamp"] = millis();
-    
-    String payload;
-    serializeJson(doc, payload);
-    
-    publish(_mqttTopicBase + "/debug", payload);
-}
-
-void MqttManager::publishReadModeStatus() {
-    StaticJsonDocument<256> doc;
-
-    doc["type"] = "read_mode_status";
-    doc["deviceId"] = _deviceId;
-    doc["readModeEnabled"] = g_system.readMode;
-    doc["timestamp"] = millis();
-
-    String payload;
-    serializeJson(doc, payload);
-
-    publish(_mqttTopicBase + "/debug", payload);
-}
-
-void MqttManager::publishNfcTimeout(unsigned long timeoutMs) {
-    StaticJsonDocument<256> doc;
-
-    doc["type"] = "nfc_timeout";
-    doc["deviceId"] = _deviceId;
+void MqttManager::publishNfcTimeout(const String& requestId,
+                                    NfcCommandType command,
+                                    unsigned long timeoutMs,
+                                    unsigned long elapsedMs) {
+    StaticJsonDocument<kResultJsonSize> doc;
+    addBaseResultFields(doc, "nfc_timeout", requestId, nfcCommandName(command), false);
+    doc["code"] = "nfc_timeout";
+    doc["message"] = "No NFC tag was presented before the timeout expired";
     doc["timeoutMs"] = timeoutMs;
-    doc["timeoutSec"] = timeoutMs / 1000;
-    doc["message"] = "No tag detected within timeout period";
-    doc["timestamp"] = millis();
+    doc["elapsedMs"] = elapsedMs;
+    _publishDoc(_resultTopic, doc, false);
+}
 
-    String payload;
-    serializeJson(doc, payload);
-
-    publish(_mqttTopicBase + "/result", payload);
+void MqttManager::publishHardwareError(const String& source,
+                                       const String& errorCode,
+                                       const String& message,
+                                       const String& requestId) {
+    StaticJsonDocument<kResultJsonSize> doc;
+    const String command = nfcJobActive()
+        ? nfcCommandName(g_system.nfcJob.command)
+        : String("none");
+    addBaseResultFields(doc, "hardware_error", requestId, command, false);
+    doc["source"] = source;
+    doc["code"] = errorCode;
+    doc["message"] = message;
+    if (nfcJobActive()) {
+        doc["activeRequestId"] = g_system.nfcJob.requestId;
+        doc["activeCommand"] = nfcCommandName(g_system.nfcJob.command);
+        doc["activeTimeoutMs"] = g_system.nfcJob.timeoutMs;
+    }
+    _publishDoc(_resultTopic, doc, false);
 }
 
 void MqttManager::setDebugMode(bool enabled) {
     g_system.debugMode = enabled;
-    Serial.print(F("[MQTT] Debug mode: "));
-    Serial.println(enabled ? "ON" : "OFF");
-    publishDebugStatus();
 }
 
-void MqttManager::setReadMode(bool enabled) {
-    g_system.readMode = enabled;
-    
-    if (enabled) {
-        g_system.hasPendingWriteCommand = false;
-        g_system.pendingTenantId = "";
-        g_system.pendingSectorId = "";
-        g_system.pendingUrl = "";
-        modeSet(MODE_READER);
-        Serial.println(F("[MQTT] Mode: Reader (auto-transmitting)"));
-        g_lcd.forceUpdate();
-    } else {
-        modeSet(MODE_STANDBY);
-        Serial.println(F("[MQTT] Mode: Standby"));
-        g_lcd.forceUpdate();
-    }
-    
-    Serial.print(F("[MQTT] Read mode: "));
-    Serial.println(enabled ? "ON" : "OFF");
-    publishReadModeStatus();
+void MqttManager::setLegacyReadMode(bool enabled) {
+    g_system.legacyReadMode = enabled;
 }
 
 void MqttManager::_handleMessage(char* topic, byte* payload, unsigned int length) {
-    // Convert payload to string
-    String message;
-    for (unsigned int i = 0; i < length; i++) {
-        message += (char)payload[i];
-    }
-    
-    Serial.print(F("[MQTT] Message received: "));
-    Serial.println(topic);
-    Serial.println(message);
-    
-    // Parse JSON
-    StaticJsonDocument<512> doc;
-    DeserializationError error = deserializeJson(doc, message);
-    
-    if (error) {
-        Serial.print(F("[MQTT] JSON parse error: "));
-        Serial.println(error.c_str());
+    if (topic == nullptr || payload == nullptr) {
+        if (!workflowBusy()) {
+            setLastError("mqtt", "invalid_message", "MQTT callback received null topic or payload");
+            g_system.stateHoldUntil = millis() + LCD_HOLD_INTERVAL_MS;
+            g_lcd.forceUpdate();
+        }
+        publishHardwareError("mqtt", "invalid_message", "MQTT callback received null topic or payload");
+        publishStatus(true);
         return;
     }
-    
-    // Handle command
-    const char* commandType = doc["type"];
-    
-    if (strcmp(commandType, "write_tag") == 0) {
-        _handleWriteTag(doc);
+
+    if (strcmp(topic, _commandTopic.c_str()) != 0) {
+        return;
     }
-    else if (strcmp(commandType, "status") == 0) {
+
+    Serial.print(F("[MQTT] RX topic="));
+    Serial.print(topic);
+    Serial.print(F(" bytes="));
+    Serial.println(length);
+
+    StaticJsonDocument<kCommandJsonSize> doc;
+    DeserializationError error = deserializeJson(doc, payload, length);
+    if (error) {
+        Serial.print(F("[MQTT] JSON error="));
+        Serial.println(error.c_str());
+        if (!workflowBusy()) {
+            setLastError("mqtt", "invalid_json", error.c_str());
+            g_system.stateHoldUntil = millis() + LCD_HOLD_INTERVAL_MS;
+            g_lcd.forceUpdate();
+        }
+        publishHardwareError("mqtt", "invalid_json", error.c_str());
+        publishStatus(true);
+        return;
+    }
+
+    const char* commandType = doc["type"] | doc["command"] | doc["action"] | "";
+    Serial.print(F("[MQTT] Command="));
+    Serial.println(commandType);
+    if (strcmp(commandType, "write") == 0 || strcmp(commandType, "write_tag") == 0) {
+        _handleWrite(doc);
+        return;
+    }
+    if (strcmp(commandType, "read") == 0 || strcmp(commandType, "read_tag") == 0) {
+        _handleRead(doc);
+        return;
+    }
+    if (strcmp(commandType, "status") == 0) {
         _handleStatus();
+        return;
     }
-    else if (strcmp(commandType, "restart") == 0) {
+    if (strcmp(commandType, "restart") == 0) {
         _handleRestart();
+        return;
     }
-    else if (strcmp(commandType, "set_debug") == 0) {
+    if (strcmp(commandType, "set_debug") == 0) {
         _handleSetDebug(doc);
+        return;
     }
-    else if (strcmp(commandType, "set_read_mode") == 0) {
+    if (strcmp(commandType, "set_read_mode") == 0) {
         _handleSetReadMode(doc);
+        return;
     }
-    else if (strcmp(commandType, "read_tag") == 0) {
-        _handleReadTag();
+
+    publishHardwareError(
+        "mqtt",
+        "unsupported_command",
+        String("Unsupported MQTT command: ") + commandType,
+        _requestIdFromDoc(doc)
+    );
+    if (!workflowBusy()) {
+        setLastError("mqtt", "unsupported_command", String("Unsupported MQTT command: ") + commandType);
+        g_system.stateHoldUntil = millis() + LCD_HOLD_INTERVAL_MS;
+        g_lcd.forceUpdate();
     }
+    publishStatus(true);
 }
 
-void MqttManager::_handleWriteTag(JsonDocument& doc) {
-    g_system.pendingTenantId = doc["tenantId"].as<String>();
-    g_system.pendingSectorId = doc["sectorId"].as<String>();
-    g_system.pendingUrl = doc["url"].as<String>();
-    g_system.hasPendingWriteCommand = true;
-    
-    modeSet(MODE_WRITER);
-    g_lcd.forceUpdate();
-    
-    Serial.println(F("[MQTT] Write command received"));
-    Serial.print(F("[MQTT] Tenant: "));
-    Serial.println(g_system.pendingTenantId);
-    Serial.print(F("[MQTT] Sector: "));
-    Serial.println(g_system.pendingSectorId);
-    Serial.print(F("[MQTT] URL: "));
-    Serial.println(g_system.pendingUrl);
-    Serial.println(F("[MQTT] Mode: Writer (waiting for tag)"));
+bool MqttManager::_isValidUri(const String& url) {
+    String value = url;
+    value.trim();
+    if (value.length() == 0 || value.length() > NDEF_URI_MAX_LENGTH) {
+        return false;
+    }
+    if (!(value.startsWith("http://") || value.startsWith("https://"))) {
+        return false;
+    }
+    return value.indexOf(' ') < 0;
 }
 
-void MqttManager::_handleSetDebug(JsonDocument& doc) {
-    bool enabled = doc["enabled"].as<bool>();
-    setDebugMode(enabled);
+unsigned long MqttManager::_clampTimeout(JsonDocument& doc, unsigned long defaultTimeoutMs) {
+    unsigned long timeoutMs = defaultTimeoutMs;
+    JsonVariantConst timeoutValue = doc["timeoutSec"];
+    if (!timeoutValue.isNull()) {
+        unsigned long timeoutSec = 0;
+        if (timeoutValue.is<unsigned long>()) {
+            timeoutSec = timeoutValue.as<unsigned long>();
+        } else if (timeoutValue.is<long>()) {
+            const long parsed = timeoutValue.as<long>();
+            timeoutSec = parsed > 0 ? static_cast<unsigned long>(parsed) : 0;
+        } else if (timeoutValue.is<const char*>()) {
+            timeoutSec = String(timeoutValue.as<const char*>()).toInt();
+        }
+
+        if (timeoutSec > 0) {
+            timeoutMs = timeoutSec * 1000UL;
+        }
+    }
+
+    const unsigned long minTimeoutMs = NFC_MIN_COMMAND_TIMEOUT_SEC * 1000UL;
+    const unsigned long maxTimeoutMs = NFC_MAX_COMMAND_TIMEOUT_SEC * 1000UL;
+    if (timeoutMs < minTimeoutMs) {
+        timeoutMs = minTimeoutMs;
+    }
+    if (timeoutMs > maxTimeoutMs) {
+        timeoutMs = maxTimeoutMs;
+    }
+    return timeoutMs;
 }
 
-void MqttManager::_handleSetReadMode(JsonDocument& doc) {
-    bool enabled = doc["enabled"].as<bool>();
-    setReadMode(enabled);
+String MqttManager::_requestIdFromDoc(JsonDocument& doc) {
+    const char* requestId = doc["requestId"] | "";
+    String value(requestId);
+    value.trim();
+    if (value.length() > 0) {
+        return value;
+    }
+    return g_system.deviceId + "-" + String(millis());
 }
 
-void MqttManager::_handleRestart() {
-    Serial.println(F("[MQTT] Restart command received"));
-    g_lcd.showMessage("Restarting", "By remote command", 1000);
-    ESP.restart();
+void MqttManager::_handleWrite(JsonDocument& doc) {
+    const String requestId = _requestIdFromDoc(doc);
+    String url = String(doc["url"] | "");
+    url.trim();
+
+    Serial.print(F("[MQTT] Handle write requestId="));
+    Serial.print(requestId);
+    Serial.print(F(" url="));
+    Serial.println(url);
+
+    if (!_isValidUri(url)) {
+        if (!workflowBusy()) {
+            setLastError("mqtt", "invalid_url", "Write requires an http:// or https:// URL payload");
+            g_system.stateHoldUntil = millis() + LCD_HOLD_INTERVAL_MS;
+            g_lcd.forceUpdate();
+        }
+        publishWriteResult(NfcCardInfo(), requestId, url, false, "invalid_url",
+                           "Write requires an http:// or https:// URL payload");
+        return;
+    }
+
+    if (workflowBusy()) {
+        publishWriteResult(NfcCardInfo(), requestId, url, false, "busy",
+                           "An NFC job is already active");
+        return;
+    }
+
+    const unsigned long timeoutMs = _clampTimeout(doc, NFC_DEFAULT_COMMAND_TIMEOUT_SEC * 1000UL);
+    const bool lockCard = parseBoolValue(doc["lock"], false);
+
+    Serial.print(F("[MQTT] Write job queued timeoutMs="));
+    Serial.print(timeoutMs);
+    Serial.print(F(" lock="));
+    Serial.println(lockCard ? F("1") : F("0"));
+
+    startNfcJob(NFC_CMD_WRITE, requestId, url, timeoutMs, lockCard);
+}
+
+void MqttManager::_handleRead(JsonDocument& doc) {
+    const String requestId = _requestIdFromDoc(doc);
+    Serial.print(F("[MQTT] Handle read requestId="));
+    Serial.println(requestId);
+    if (workflowBusy()) {
+        publishHardwareError("nfc", "busy", "An NFC job is already active", requestId);
+        return;
+    }
+
+    const unsigned long timeoutMs = _clampTimeout(doc, NFC_DEFAULT_COMMAND_TIMEOUT_SEC * 1000UL);
+    Serial.print(F("[MQTT] Read job queued timeoutMs="));
+    Serial.println(timeoutMs);
+    startNfcJob(NFC_CMD_READ, requestId, "", timeoutMs, false);
 }
 
 void MqttManager::_handleStatus() {
-    publishStatus();
+    publishStatus(true);
+    publishHeartbeat();
 }
 
-void MqttManager::_handleReadTag() {
-    modeSet(MODE_READER);
-    g_lcd.forceUpdate();
-    Serial.println(F("[MQTT] One-time read command received"));
+void MqttManager::_handleRestart() {
+    publishStatus(true);
+    ESP.restart();
+}
+
+void MqttManager::_handleSetDebug(JsonDocument& doc) {
+    setDebugMode(parseBoolValue(doc["enabled"], g_system.debugMode));
+    publishStatus(true);
+}
+
+void MqttManager::_handleSetReadMode(JsonDocument& doc) {
+    setLegacyReadMode(parseBoolValue(doc["enabled"], g_system.legacyReadMode));
+    publishStatus(true);
 }

@@ -1,402 +1,274 @@
-# OneTapGo ESP8266 NFC Writer - Production Deployment Guide
+# OneTapGo ESP8266 NFC Writer
 
-## Overview
+Guia curto de operacao do firmware MQTT + NFC sob demanda.
 
-This system enables NFC tag programming via MQTT communication between a web interface and ESP8266-based hardware with an RC522 NFC reader and SSD1306 LCD display.
+## Visao geral
 
-### Architecture
+O dispositivo:
 
-```
-┌─────────────────┐      MQTT (TLS)      ┌──────────────────────┐
-│   Web Browser   │ ◄──────────────────► │   ESP8266 Device     │
-│   (admin.html)  │                      │   (HW-364A Board)    │
-│                 │                      │                      │
-│ - QR Scanner    │                      │ - RC522 NFC Reader   │
-│ - MQTT Client   │                      │ - SSD1306 LCD        │
-│ - Firebase DB   │                      │ - WiFi Client        │
-└─────────────────┘                      └──────────────────────┘
-         │                                       │
-         │                                       │
-         ▼                                       ▼
-┌─────────────────┐                      ┌──────────────────────┐
-│  Firebase       │                      │   NFC Tags           │
-│  Firestore      │                      │   (Mifare Classic)   │
-└─────────────────┘                      └──────────────────────┘
-```
+- conecta no Wi-Fi configurado;
+- conecta no broker MQTT;
+- fica em modo `idle` exibindo status no LCD;
+- ativa o modulo NFC somente quando recebe um comando MQTT;
+- le ou grava tags NFC em NDEF e publica o resultado no MQTT.
 
-## Hardware Requirements
+Uso principal:
 
-### Bill of Materials
+- `write`: grava uma URL como registro NDEF URI (`U`) compativel com iPhone e Android;
+- `read`: le a tag, procura dados NDEF e devolve UID + conteudo encontrado.
 
-| Component | Specification | Quantity | Notes |
-|-----------|--------------|----------|-------|
-| ESP8266 Board | NodeMCU LoLin V3 | 1 | HW-364A with LCD connector |
-| NFC Reader | MFRC522 (RC522) | 1 | 13.56 MHz RFID/NFC |
-| LCD Display | SSD1306 OLED | 1 | 128x64, I2C interface |
-| Antenna | NFC Antenna | 1 | Integrated in RC522 module |
-| Jumper Wires | Female-to-Female | 12+ | For connections |
-| USB Cable | Micro USB | 1 | For programming and power |
+## Setup rapido
 
-### Wiring Diagram
+1. Compile e grave o firmware com PlatformIO.
+2. Ligue o dispositivo.
+3. Se o Wi-Fi ja estiver configurado, ele tentara conectar automaticamente.
+4. Se nao estiver conectado, o LCD mostrara o AP de configuracao e a senha.
+5. Configure a rede Wi-Fi pelo portal e aguarde a conexao MQTT.
 
-#### RC522 to NodeMCU LoLin V3
+## LCD e fallback de Wi-Fi
 
-| RC522 Pin | NodeMCU Pin | GPIO | Note |
-|-----------|-------------|------|------|
-| RST | D1 | GPIO 5 | Reset |
-| SS | D2 | GPIO 4 | Slave Select |
-| MOSI | D7 | GPIO 13 | Master Out Slave In |
-| MISO | D6 | GPIO 12 | Master In Slave Out |
-| SCK | D5 | GPIO 14 | Clock |
-| 3.3V | 3.3V | 3.3V | **DO NOT USE 5V** |
-| GND | GND | GND | Ground |
+Em operacao normal, o LCD mostra informacoes importantes do hardware:
 
-#### SSD1306 OLED to NodeMCU LoLin V3
+- status do Wi-Fi;
+- SSID;
+- RSSI/sinal;
+- endereco IP;
+- status do MQTT;
+- status do NFC;
+- estado atual do dispositivo.
 
-| OLED Pin | NodeMCU Pin | GPIO | Note |
-|----------|-------------|------|------|
-| VCC | 3.3V | 3.3V | Power |
-| GND | GND | GND | Ground |
-| SDA | D4 | GPIO 2 | I2C Data |
-| SCL | D5 | GPIO 14 | I2C Clock |
+Se o dispositivo nao conseguir entrar no Wi-Fi, o LCD mostra o AP local de configuracao:
 
-**Important:** The HW-364A board has a built-in LCD connector. Verify pin assignments match your specific board revision.
+- SSID: `OneTapGo_XXXXXX`
+- Senha: `onetapgo123`
 
-## Software Installation
+O sufixo do SSID varia conforme o dispositivo.
 
-### Prerequisites
+## Topicos MQTT
 
-1. **PlatformIO IDE** (VS Code extension) or Arduino IDE 2.x
-2. **Python 3.8+** (for PlatformIO)
-3. **Git** (for version control)
+Todos os topicos ficam sob:
 
-### PlatformIO Setup
-
-1. Open the project in VS Code with PlatformIO extension
-2. Navigate to `esp8266-arduino/` directory
-3. PlatformIO will automatically install dependencies
-
-### Build and Upload
-
-```bash
-# Navigate to project directory
-cd esp8266-arduino
-
-# Build the project
-pio run -e nodemcuv2
-
-# Upload to device
-pio run -e nodemcuv2 -t upload
-
-# Open serial monitor
-pio device monitor
+```text
+onetapgo/{deviceId}
 ```
 
-### First-Time Configuration
+Topicos usados:
 
-1. **Power on the device** - It will create a WiFi Access Point
-2. **Connect to WiFi**: `OneTapGo_XXXXXX` (password: `onetapgo`)
-3. **Configuration portal** will open automatically (or go to `192.168.4.1`)
-4. **Select your WiFi network** and enter credentials
-5. **Save** - Device will reboot and connect to your network
+- `onetapgo/{deviceId}/command`
+  - subscribe do dispositivo
+  - recebe comandos da interface web
+- `onetapgo/{deviceId}/status`
+  - publish do dispositivo
+  - status atual do hardware e conectividade
+- `onetapgo/{deviceId}/heartbeat`
+  - publish do dispositivo
+  - pulso periodico para monitoramento
+- `onetapgo/{deviceId}/result`
+  - publish do dispositivo
+  - resultado de leitura, gravacao, timeout ou erro
+- `onetapgo/{deviceId}/debug`
+  - publish do dispositivo
+  - estado de debug e flags de compatibilidade
 
-## MQTT Configuration
+## Comandos em `/command`
 
-### Connection Details
+Todos os comandos usam JSON e o campo `type`.
 
-| Parameter | Value |
-|-----------|-------|
-| Host | `m191dfff.ala.us-east-1.emqxsl.com` |
-| Port (TLS) | `8883` |
-| WebSocket Port | `8084` |
-| Username | `onetapgo` |
-| Password | `onetapgo` |
-| Protocol | MQTT 3.1.1 over TLS |
+Comandos aceitos:
 
-### Topic Structure
+- `write`
+- `read`
+- `status`
+- `restart`
+- `set_debug`
+- `set_read_mode`
+- `write_tag`  (alias legado de `write`)
+- `read_tag`   (alias legado de `read`)
 
-```
-onetapgo/{deviceId}/
-├── status      - Device status updates (online/offline)
-├── heartbeat   - Periodic heartbeat messages
-├── command     - Commands from web admin (subscribe)
-└── result      - Write results and tag detection
-```
+### `write`
 
-### Message Formats
+Grava uma unica URL como NDEF URI record (`U`).
 
-#### Command Message (Web → Device)
+Campos aceitos:
+
+- `type`: `write`
+- `url`: URL obrigatoria, somente `http://` ou `https://`
+- `timeoutSec`: timeout opcional para apresentar a tag
+- `lock`: opcional, `true` para tentar bloquear a tag apos gravacao
+- `requestId`: opcional, usado para correlacao com a interface web
+
+Exemplo:
 
 ```json
 {
-  "type": "write_tag",
-  "tenantId": "tenant123",
-  "sectorId": "sector456",
-  "timestamp": 1234567890
+  "type": "write",
+  "url": "https://example.com/tag/123",
+  "timeoutSec": 30,
+  "lock": false,
+  "requestId": "req-001"
 }
 ```
 
-#### Heartbeat Message (Device → Web)
+Observacoes:
+
+- payloads que nao forem URL `http/https` sao recusados;
+- a gravacao usa NDEF URI record, nao texto livre;
+- por padrao a tag permanece regravavel;
+- `lock: true` e opcional e depende do tipo de cartao suportar bloqueio seguro.
+
+### `read`
+
+Ativa o leitor NFC e espera uma tag pelo tempo informado.
+
+Campos aceitos:
+
+- `type`: `read`
+- `timeoutSec`: timeout opcional para apresentar a tag
+- `requestId`: opcional, usado para correlacao
+
+Exemplo:
 
 ```json
 {
-  "type": "heartbeat",
-  "deviceId": "onetapgo_device_ab12cd",
-  "state": 0,
-  "wifi_rssi": -65,
-  "free_heap": 45678,
-  "uptime": 123456,
-  "timestamp": 1234567890
+  "type": "read",
+  "timeoutSec": 20,
+  "requestId": "req-002"
 }
 ```
 
-#### Result Message (Device → Web)
+### `status`
+
+Solicita publicacao imediata do estado atual em `/status`.
+
+Exemplo:
 
 ```json
 {
-  "type": "write_success",
-  "deviceId": "onetapgo_device_ab12cd",
-  "success": true,
-  "timestamp": 1234567890
+  "type": "status"
 }
 ```
 
-### State Values
+### `restart`
 
-| State | Value | Description |
-|-------|-------|-------------|
-| IDLE | 0 | Ready, waiting for command |
-| WAITING_TAG | 1 | Waiting for NFC tag |
-| TAG_DETECTED | 2 | Tag detected |
-| WRITING | 3 | Writing to tag |
-| SUCCESS | 4 | Write successful |
-| ERROR | 5 | Write error |
-| CONFIG_MODE | 6 | WiFi configuration mode |
+Solicita reinicio do dispositivo.
 
-## Web Admin Interface
+Exemplo:
 
-### Access
-
-The admin interface is available at: `https://your-domain.com/admin.html`
-
-### Features
-
-1. **QR Code Scanner** - Scan QR codes for tag association
-2. **MQTT Device Control** - Send commands to ESP8266 devices
-3. **Tenant/Sector Management** - Organize tags by tenant and sector
-4. **Real-time Status** - View device connection status
-5. **Activity Log** - Track all scan and write operations
-
-### iOS/Safari Compatibility
-
-The admin interface is optimized for iOS Safari with:
-- Touch-friendly UI elements
-- Proper viewport handling
-- Haptic feedback (where supported)
-- Dark mode support
-- Prevents accidental zoom and refresh
-
-### Usage Flow
-
-1. **Select Tenant** - Choose the tenant from dropdown
-2. **Select Sector** - Choose or create a sector
-3. **Subscribe to Device** - Enter device topic and click Subscribe
-4. **Send Write Command** - Click "Write" button
-5. **Place NFC Tag** - Device will detect and write to tag
-6. **Verify Result** - Check log for success/error status
-
-## Production Best Practices
-
-### Security
-
-1. **Change Default Credentials**
-   - Update MQTT username/password in production
-   - Change WiFi AP password in `onetapgo.ino`
-
-2. **TLS/SSL**
-   - MQTT uses TLS encryption (port 8883)
-   - Certificate verification is disabled for simplicity (`setInsecure()`)
-   - For higher security, implement proper certificate validation
-
-3. **Firebase Security Rules**
-   ```javascript
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /tenants/{tenantId} {
-         allow read: if request.auth != null;
-         allow write: if request.auth != null && 
-                      request.auth.token.admin == true;
-       }
-       match /tags/{tagId} {
-         allow read: if true;
-         allow write: if request.auth != null;
-       }
-     }
-   }
-   ```
-
-### Reliability
-
-1. **Watchdog Timer**
-   - `yield()` calls prevent watchdog resets
-   - Automatic reconnection logic for WiFi and MQTT
-
-2. **Error Handling**
-   - Graceful degradation on network failures
-   - Retry logic with exponential backoff
-   - Status reporting via MQTT and LCD
-
-3. **Memory Management**
-   - Static JSON documents to prevent fragmentation
-   - Regular heap monitoring via heartbeat
-   - Optimized for ESP8266's limited RAM
-
-### Monitoring
-
-1. **Device Health**
-   - Heartbeat every 30 seconds
-   - WiFi RSSI monitoring
-   - Free heap space reporting
-   - Uptime tracking
-
-2. **Logging**
-   - Serial logging at 115200 baud
-   - MQTT message logging
-   - LCD status display
-
-3. **Alerts**
-   - Monitor heartbeat frequency
-   - Alert on repeated write failures
-   - Monitor WiFi signal strength
-
-### OTA Updates
-
-Enable Over-The-Air updates for remote deployments:
-
-```ini
-; In platformio.ini
-upload_protocol = espota
-upload_port = onetapgo.local
-upload_flags =
-    --auth=your_ota_password
-```
-
-In code:
-```cpp
-#include <ArduinoOTA.h>
-
-void otaInit() {
-    ArduinoOTA.setHostname(deviceId.c_str());
-    ArduinoOTA.setPassword("your_ota_password");
-    ArduinoOTA.begin();
-}
-
-void otaLoop() {
-    ArduinoOTA.handle();
+```json
+{
+  "type": "restart"
 }
 ```
 
-## Troubleshooting
+### `set_debug`
 
-### Device Won't Connect to WiFi
+Liga ou desliga o modo de debug publicado em `/debug`.
 
-1. Check WiFi credentials in configuration portal
-2. Verify 2.4GHz network (ESP8266 doesn't support 5GHz)
-3. Check signal strength (RSSI should be > -80)
-4. Restart device and try again
+Exemplo:
 
-### MQTT Connection Fails
+```json
+{
+  "type": "set_debug",
+  "enabled": true
+}
+```
 
-1. Verify network connectivity (ping MQTT broker)
-2. Check MQTT credentials
-3. Verify port 8883 is not blocked by firewall
-4. Check device time (TLS requires correct time)
+### `set_read_mode`
 
-### NFC Write Failures
+Flag de compatibilidade com integracoes antigas. Nao reativa leitura continua do fluxo novo.
 
-1. Ensure tag is Mifare Classic 1K or compatible
-2. Check tag proximity (hold closer to reader)
-3. Verify RC522 antenna gain is set to maximum
-4. Try formatting tag first (some tags need initialization)
+Exemplo:
 
-### LCD Not Displaying
+```json
+{
+  "type": "set_read_mode",
+  "enabled": false
+}
+```
 
-1. Check I2C connections (SDA, SCL)
-2. Verify I2C address (0x3C or 0x3D)
-3. Check power supply (3.3V, not 5V)
-4. Run I2C scanner to detect display
+## O que o dispositivo publica
 
-### Serial Monitor Shows Garbage
+### `/status`
 
-1. Verify baud rate (115200)
-2. Check USB cable quality
-3. Try different USB port
-4. Reset device after opening monitor
+Estado atual do dispositivo. A interface web pode esperar, em alto nivel:
 
-## Performance Optimization
+- `deviceId`, versao, uptime;
+- estado do Wi-Fi, SSID, IP, RSSI;
+- estado do MQTT;
+- estado do NFC;
+- job NFC atual, quando existir;
+- ultimo erro, quando existir.
 
-### Memory Optimization
+Essa publicacao deve ser tratada como snapshot atual do hardware. Normalmente e enviada como retained.
 
-- Use `StaticJsonDocument` instead of `DynamicJsonDocument`
-- Minimize String allocations
-- Use `F()` macro for string literals
-- Enable LTO in build flags
+### `/heartbeat`
 
-### Power Optimization
+Pulso periodico para monitoramento.
 
-- Reduce heartbeat interval for battery operation
-- Implement deep sleep between operations
-- Disable LCD backlight when idle
+A interface web pode esperar:
 
-### Network Optimization
+- `deviceId`;
+- status resumido de Wi-Fi/MQTT/NFC;
+- uptime;
+- memoria livre/telemetria basica;
+- timestamp.
 
-- Use QoS 1 for critical messages
-- Implement message deduplication
-- Cache frequently used data
+Use esse topico para detectar se o dispositivo segue online.
 
-## API Reference
+### `/result`
 
-### Web Admin Functions
+Resultado de operacoes NFC.
 
-| Function | Description |
-|----------|-------------|
-| `initMQTT()` | Initialize MQTT connection |
-| `subscribeToDevice(topic)` | Subscribe to device topic |
-| `sendWriteCommand()` | Send write command to device |
-| `publishMessage(topic, payload)` | Publish MQTT message |
+Tipos esperados em alto nivel:
 
-### ESP8266 Functions
+- `tag_read`
+- `write_success`
+- `write_error`
+- `nfc_timeout`
+- `hardware_error`
 
-| Function | Description |
-|----------|-------------|
-| `wifiInit()` | Initialize WiFi with WiFiManager |
-| `mqttInit()` | Initialize MQTT client |
-| `mqttConnect()` | Connect to MQTT broker |
-| `publishStatus()` | Publish device status |
-| `publishHeartbeat()` | Publish heartbeat message |
-| `writeNfcTag(tenant, sector)` | Write NFC tag with URL |
-| `displayShowState(state)` | Update LCD display |
+Campos que a interface web pode esperar, conforme o caso:
 
-## Version History
+- `requestId`;
+- `command`;
+- `success`;
+- `errorCode`;
+- `message`;
+- `uid` da tag;
+- `tagType`, familia e capacidade;
+- informacoes NDEF encontradas;
+- URL gravada ou lida;
+- indicacao de lock solicitado/aplicado.
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 3.0.0 | 2026-03 | Production release with MQTT, WiFi Manager, LCD |
-| 2.2 | 2025-12 | Basic NFC writer (legacy) |
-| 1.0 | 2025-06 | Initial prototype |
+Em leitura, o payload retorna o UID e tenta sempre extrair dados NDEF.
 
-## Support
+Em gravacao, o payload informa sucesso ou erro da escrita e da verificacao.
 
-For technical support and issues:
-- GitHub Issues: [repository-url]
-- Documentation: [docs-url]
-- Email: support@onetapgo.site
+### `/debug`
 
-## License
+Topico auxiliar para flags operacionais.
 
-Copyright © 2026 OneTapGo by CRE8 Tecnologia. All rights reserved.
+A interface web pode esperar:
 
----
+- modo debug habilitado/desabilitado;
+- flag de compatibilidade `set_read_mode`;
+- eventualmente outros sinais de diagnostico do firmware.
 
-**Note:** This documentation is for production deployment. For development and testing guidelines, see `DEVELOPMENT.md`.
+## Fluxo operacional esperado
+
+1. A interface web envia `write` ou `read` em `/command`.
+2. O dispositivo pausa a atualizacao normal do LCD e ativa o NFC sob demanda.
+3. Se uma tag for apresentada dentro do timeout:
+   - `read`: le UID + NDEF e publica em `/result`;
+   - `write`: grava a URL em NDEF URI e publica em `/result`.
+4. Se nenhuma tag for apresentada no prazo, publica `nfc_timeout`.
+5. Ao terminar, o dispositivo volta ao dashboard normal no LCD.
+
+## Compatibilidade
+
+Aliases legados suportados:
+
+- `write_tag` -> `write`
+- `read_tag` -> `read`
+
+Campos legados fora do fluxo atual, como `tenantId` e `sectorId`, nao fazem parte do contrato novo.

@@ -33,6 +33,10 @@
 // - SDA: GPIO 14 (D5) - shares with SPI SCK
 // - SCL: GPIO 12 (D6) - shares with SPI MISO
 
+// LCD is currently not part of the critical path. Keep it disabled until the
+// shared-bus wiring is revisited.
+#define LCD_ENABLED    1
+
 #define OLED_SDA_PIN   14  // D5 (GPIO 14) - shares with SPI SCK
 #define OLED_SCL_PIN   12  // D6 (GPIO 12) - shares with SPI MISO
 #define OLED_RESET_PIN -1  // Not connected (or use GPIO 16 / D0)
@@ -48,7 +52,7 @@
 // ============================================================================
 // Timing Configuration
 // ============================================================================
-#define NFC_POLL_INTERVAL_MS    50    // NFC polling interval (50ms)
+#define NFC_POLL_INTERVAL_MS    120   // NFC polling interval (120ms)
 #define LCD_UPDATE_INTERVAL_MS  500   // LCD update interval when idle
 #define LCD_HOLD_INTERVAL_MS    2000  // LCD hold time for messages
 #define NFC_ACTIVITY_TIMEOUT_MS 5000  // NFC operation timeout

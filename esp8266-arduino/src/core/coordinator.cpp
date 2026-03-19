@@ -5,9 +5,72 @@
 
 #include "core/coordinator.h"
 
-// ============================================================================
-// Coordinator Implementation
-// ============================================================================
+namespace {
+String defaultErrorCodeFor(NfcCommandType command) {
+    switch (command) {
+        case NFC_CMD_WRITE:
+            return "write_failed";
+        case NFC_CMD_READ:
+            return "read_failed";
+        case NFC_CMD_NONE:
+        default:
+            return "nfc_error";
+    }
+}
+
+String extractErrorCode(const String& rawError, NfcCommandType command) {
+    if (rawError.length() == 0) {
+        return defaultErrorCodeFor(command);
+    }
+
+    int pipeIndex = rawError.indexOf('|');
+    if (pipeIndex > 0) {
+        return rawError.substring(0, pipeIndex);
+    }
+
+    int colonIndex = rawError.indexOf(':');
+    if (colonIndex > 0) {
+        return rawError.substring(0, colonIndex);
+    }
+
+    return defaultErrorCodeFor(command);
+}
+
+String extractErrorMessage(const String& rawError, NfcCommandType command) {
+    if (rawError.length() == 0) {
+        return defaultErrorCodeFor(command);
+    }
+
+    const int length = rawError.length();
+    int pipeIndex = rawError.indexOf('|');
+    if (pipeIndex > 0 && pipeIndex < (length - 1)) {
+        return rawError.substring(pipeIndex + 1);
+    }
+
+    int colonIndex = rawError.indexOf(':');
+    if (colonIndex > 0 && colonIndex < (length - 1)) {
+        return rawError.substring(colonIndex + 1);
+    }
+
+    return rawError;
+}
+
+void logStateSnapshot(const char* prefix) {
+    Serial.print(prefix);
+    Serial.print(F(" state="));
+    Serial.print(deviceStateName((DeviceState)g_system.state));
+    Serial.print(F(" wifi="));
+    Serial.print(g_system.isWifiConnected ? F("1") : F("0"));
+    Serial.print(F(" mqtt="));
+    Serial.print(g_system.isMqttConnected ? F("1") : F("0"));
+    Serial.print(F(" nfc="));
+    Serial.print(g_system.isNfcConnected ? F("1") : F("0"));
+    Serial.print(F(" job="));
+    Serial.print(nfcJobActive() ? nfcCommandName(g_system.nfcJob.command) : F("none"));
+    Serial.print(F(" heap="));
+    Serial.println(ESP.getFreeHeap());
+}
+}
 
 void Coordinator::begin() {
     Serial.println(F("\n========================================"));
@@ -16,229 +79,336 @@ void Coordinator::begin() {
     Serial.println(F("========================================"));
     Serial.print(F("[SYS] Free heap: "));
     Serial.println(ESP.getFreeHeap());
-    
-    // Initialize state
+
     stateInit();
-    
-    // Initialize LCD first (for visual feedback)
-    Serial.println(F("[SYS] Initializing LCD..."));
-    g_lcd.begin();
-    
-    // Initialize WiFi
+
+    Serial.println(F("[SYS] Preparing SPI bus..."));
+    SPI.begin();
+
+    if (LCD_ENABLED) {
+        Serial.println(F("[SYS] Initializing LCD..."));
+        g_lcd.begin();
+    } else {
+        Serial.println(F("[SYS] LCD disabled"));
+    }
+
     Serial.println(F("[SYS] Initializing WiFi..."));
     g_wifiManager.begin();
-    
-    // Initialize MQTT
+
     Serial.println(F("[SYS] Initializing MQTT..."));
     g_mqttManager.begin(g_system.deviceId, g_system.mqttTopicBase);
-    
-    // Initialize NFC
+
     Serial.println(F("[SYS] Initializing NFC..."));
     g_nfcManager.begin();
-    
-    // Initial display update
-    g_lcd.forceUpdate();
-    
+
+    // Update state after all hardware is initialized
+    if (g_system.portalActive) {
+        stateSet(STATE_WIFI_SETUP);
+    } else if (!nfcJobActive() && g_system.state == STATE_BOOT) {
+        stateSet(STATE_IDLE);
+    }
+    _observedJobStartedAt = 0;
+
+    if (LCD_ENABLED) {
+        g_lcd.forceUpdate();
+    }
+    g_mqttManager.publishStatus(true);
+
     Serial.println(F("\n[SYS] Initialization complete"));
     Serial.print(F("[SYS] Free heap: "));
     Serial.println(ESP.getFreeHeap());
 }
 
 void Coordinator::loop() {
-    // Process MQTT (handles reconnection internally)
-    g_mqttManager.loop();
+    static DeviceState lastLoggedState = STATE_BOOT;
+    static bool lastJobActive = false;
+    static unsigned long lastHeartbeatLog = 0;
 
-    // Check WiFi connection
-    if (!g_wifiManager.isConnected()) {
-        // WiFi disconnected - update display
-        g_lcd.forceUpdate();
+    
+
+    if (nfcJobActive()) {
+        _handleNfcJob();
+    } else {
+        nfcReleaseLock();
+        if (g_system.legacyReadMode && g_system.isNfcConnected) {
+            _handleLegacyReadMode();
+        } else {
+            _syncIdleState();
+        }
     }
 
-    // Handle NFC operations (with LCD coordination)
-    handleNfcOperations();
-    
-    // Check NFC timeout when waiting for tag
-    checkNfcTimeout();
-
-    // Update LCD (only if not paused for NFC)
     g_lcd.showState();
 
-    // Watchdog feed
+    g_wifiManager.loop();
+    g_mqttManager.loop();
+
+    if (g_system.state != lastLoggedState) {
+        Serial.print(F("[LOOP] State -> "));
+        Serial.println(deviceStateName((DeviceState)g_system.state));
+        lastLoggedState = (DeviceState)g_system.state;
+    }
+
+    if (nfcJobActive() != lastJobActive) {
+        Serial.print(F("[LOOP] Job active -> "));
+        Serial.println(nfcJobActive() ? F("YES") : F("NO"));
+        lastJobActive = nfcJobActive();
+    }
+
+    if (millis() - lastHeartbeatLog >= 10000UL) {
+        lastHeartbeatLog = millis();
+        logStateSnapshot("[LOOP] Alive");
+    }
+
     yield();
 }
 
-void Coordinator::handleNfcOperations() {
-    // Only poll NFC in IDLE, WAITING_TAG, or READ_MODE states
-    if (g_system.state != STATE_IDLE &&
-        g_system.state != STATE_WAITING_TAG &&
-        g_system.state != STATE_READ_MODE) {
-        return;
-    }
-    
-    // Start timeout counter when entering WAITING_TAG state
-    if (g_system.state == STATE_WAITING_TAG && g_system.nfcWaitStartTime == 0) {
-        g_system.nfcWaitStartTime = millis();
-        g_system.nfcTimeoutWarningSent = false;
-        Serial.println(F("[COORD] NFC wait timeout started"));
-    }
-    
-    // Reset timeout when not in waiting state
-    if (g_system.state != STATE_WAITING_TAG) {
-        g_system.nfcWaitStartTime = 0;
-        g_system.nfcTimeoutWarningSent = false;
-    }
+void Coordinator::_syncIdleState() {
+    const unsigned long now = millis();
 
-    // Poll for tags (with coordination)
-    if (g_nfcManager.poll()) {
-        // Tag detected!
-        processTag();
-    }
-}
-
-void Coordinator::checkNfcTimeout() {
-    // Only check timeout when waiting for tag
-    if (g_system.state != STATE_WAITING_TAG) {
-        return;
-    }
-    
-    // Check if timeout is enabled (non-zero)
-    if (NFC_WAIT_TIMEOUT_MS <= 0) {
-        return;
-    }
-    
-    unsigned long elapsed = millis() - g_system.nfcWaitStartTime;
-    
-    // Send warning before timeout (if not already sent)
-    if (!g_system.nfcTimeoutWarningSent && 
-        elapsed >= (NFC_WAIT_TIMEOUT_MS - NFC_WARNING_BEFORE_MS)) {
-        Serial.println(F("[COORD] NFC timeout warning - 5 seconds remaining"));
-        
-        // Show warning on display
-        g_lcd.showMessage("ATENCAO", "Aproxime o tag!", 1000);
-        
-        g_system.nfcTimeoutWarningSent = true;
-    }
-    
-    // Check for timeout
-    if (elapsed >= NFC_WAIT_TIMEOUT_MS) {
-        Serial.println(F("[COORD] NFC wait timeout!"));
-        Serial.print(F("[COORD] Elapsed: "));
-        Serial.print(elapsed);
-        Serial.println(F("ms"));
-        
-        // Publish timeout notification via MQTT
-        g_mqttManager.publishNfcTimeout(NFC_WAIT_TIMEOUT_MS);
-        
-        // Show timeout on display
-        g_lcd.showMessage("TIMEOUT", "Nenhum tag detectado", 2000);
-        
-        // Reset state to standby
-        g_system.nfcWaitStartTime = 0;
-        g_system.nfcTimeoutWarningSent = false;
-        g_system.hasPendingWriteCommand = false;
-        g_system.pendingTenantId = "";
-        g_system.pendingSectorId = "";
-        g_system.pendingUrl = "";
-        
-        // Return to read mode (standby)
-        modeSet(MODE_STANDBY);
-        
-        Serial.println(F("[COORD] NFC returned to standby"));
-    }
-}
-
-void Coordinator::processTag() {
-    Serial.println(F("[COORD] Tag detected!"));
-    
-    // Reset timeout counter
-    g_system.nfcWaitStartTime = 0;
-    g_system.nfcTimeoutWarningSent = false;
-
-    // Pause LCD during NFC operation
-    lcdPauseForNfc();
-
-    if (g_system.hasPendingWriteCommand && g_system.mode == MODE_WRITER) {
-        // Write mode - program tag
-        writeTag();
-    } else if (g_system.readMode) {
-        // Read mode - read and publish
-        readTag();
-    }
-
-    // Resume LCD after NFC operation
-    lcdResumeAfterNfc();
-}
-
-void Coordinator::writeTag() {
-    Serial.println(F("[COORD] Writing tag..."));
-    
-    stateSet(STATE_WRITING);
-    g_lcd.forceUpdate();
-    
-    // Write tag
-    bool success = g_nfcManager.writeTag(g_system.pendingUrl);
-    
-    if (success) {
-        stateSet(STATE_SUCCESS);
-        Serial.println(F("[COORD] Write successful!"));
-        
-        // Publish result
-        g_mqttManager.publishWriteResult(true, g_system.pendingUrl);
-        
-        // Show success
-        g_lcd.showMessage("SUCCESS!", "Tag gravado com sucesso", 2000);
-        
-        // Clear pending command
-        g_system.hasPendingWriteCommand = false;
-        g_system.pendingTenantId = "";
-        g_system.pendingSectorId = "";
-        g_system.pendingUrl = "";
-        
-        // Return to read mode
-        modeSet(MODE_READER);
-    } else {
-        stateSet(STATE_ERROR);
-        Serial.println(F("[COORD] Write failed!"));
-        
-        // Publish error
-        g_mqttManager.publishWriteResult(false, "Write failed");
-        
-        // Show error
-        g_lcd.showMessage("ERROR", "Falha na gravacao", 2000);
-        
-        // Return to waiting state
-        stateSet(STATE_WAITING_TAG);
-    }
-    
-    g_lcd.forceUpdate();
-}
-
-void Coordinator::readTag() {
-    Serial.println(F("[COORD] Reading tag..."));
-    
-    stateSet(STATE_TAG_DETECTED);
-    
-    // Read tag data
-    NfcTagData tagData;
-    if (g_nfcManager.readTag(tagData)) {
-        Serial.print(F("[COORD] Tag UID: "));
-        Serial.println(tagData.uid);
-        
-        // Publish tag data
-        g_mqttManager.publishTagData(tagData.uid, tagData.ndefUrl, tagData.rawSectorData);
-        
-        // Show on display
-        String msg = "UID: " + tagData.uid.substring(0, 8);
-        if (tagData.ndefUrl.length() > 0) {
-            msg += " [NDEF]";
+    if (g_system.portalActive) {
+        if (g_system.state != STATE_WIFI_SETUP) {
+            stateSet(STATE_WIFI_SETUP);
+            g_mqttManager.publishStatus(true);
         }
-        g_lcd.showMessage("Tag Detectada", msg.c_str(), 1500);
-    } else {
-        Serial.println(F("[COORD] Read failed!"));
-        g_lcd.showMessage("ERROR", "Leitura falhou", 1000);
+        return;
     }
-    
-    // Return to idle/read mode
-    stateSet(STATE_READ_MODE);
+
+    if ((g_system.state == STATE_SUCCESS || g_system.state == STATE_ERROR) &&
+        g_system.stateHoldUntil != 0 &&
+        ((long)(now - g_system.stateHoldUntil) < 0)) {
+        return;
+    }
+
+    if (g_system.state != STATE_IDLE) {
+        if (g_system.state == STATE_ERROR) {
+            clearLastError();
+        }
+        g_system.stateHoldUntil = 0;
+        stateSet(STATE_IDLE);
+        g_mqttManager.publishStatus(true);
+    }
+}
+
+void Coordinator::_handleLegacyReadMode() {
+    const unsigned long now = millis();
+
+    if ((g_system.state == STATE_SUCCESS || g_system.state == STATE_ERROR) &&
+        g_system.stateHoldUntil != 0 &&
+        ((long)(now - g_system.stateHoldUntil) < 0)) {
+        return;
+    }
+
+    if (now < _legacyCooldownUntil) {
+        return;
+    }
+
+    if (g_system.state != STATE_IDLE) {
+        g_system.stateHoldUntil = 0;
+        stateSet(STATE_IDLE);
+    }
+
+    if ((now - g_system.lastNfcPoll) < NFC_POLL_INTERVAL_MS) {
+        return;
+    }
+    g_system.lastNfcPoll = now;
+
+    if (!g_nfcManager.tagPresent()) {
+        return;
+    }
+
+    Serial.println(F("[NFC] Legacy read mode detected a tag"));
+    stateSet(STATE_NFC_ACTIVE);
+
+    NfcCardInfo card;
+    String error;
+    const bool success = g_nfcManager.readTag(card, &error);
+    g_system.lastCard = card;
+    g_system.lastCompletedCommand = NFC_CMD_READ;
+
+    const String requestId = String("legacy-") + String(millis());
+    if (success) {
+        clearLastError();
+        g_mqttManager.publishReadResult(card, requestId);
+        stateSet(STATE_SUCCESS);
+    } else {
+        const String errorCode = extractErrorCode(error, NFC_CMD_READ);
+        const String message = extractErrorMessage(error, NFC_CMD_READ);
+        setLastError("nfc", errorCode, message);
+        g_mqttManager.publishHardwareError("nfc", errorCode, message, requestId);
+    }
+
+    g_system.stateHoldUntil = millis() + LCD_HOLD_INTERVAL_MS;
+    g_mqttManager.publishStatus(true);
+    _legacyCooldownUntil = millis() + 1500UL;
+}
+
+bool Coordinator::_jobTimedOut(unsigned long now) const {
+    return g_system.nfcJob.active &&
+           (now - g_system.nfcJob.startedAt) >= g_system.nfcJob.timeoutMs;
+}
+
+void Coordinator::_prepareActiveJob() {
+    if (!g_system.nfcJob.active) {
+        return;
+    }
+
+    if (_observedJobStartedAt == g_system.nfcJob.startedAt) {
+        return;
+    }
+    _observedJobStartedAt = g_system.nfcJob.startedAt;
+
+    Serial.print(F("[NFC] Job prepared type="));
+    Serial.print(nfcCommandName(g_system.nfcJob.command));
+    Serial.print(F(" requestId="));
+    Serial.print(g_system.nfcJob.requestId);
+    Serial.print(F(" timeoutMs="));
+    Serial.println(g_system.nfcJob.timeoutMs);
+
+    stateSet(STATE_NFC_WAITING);
     g_lcd.forceUpdate();
+    g_mqttManager.publishStatus(true);
+}
+
+void Coordinator::_handleNfcJob() {
+    _prepareActiveJob();
+
+    const unsigned long now = millis();
+    if (_jobTimedOut(now)) {
+        _handleNfcTimeout();
+        return;
+    }
+
+    if ((now - g_system.lastNfcPoll) < NFC_POLL_INTERVAL_MS) {
+        return;
+    }
+    g_system.lastNfcPoll = now;
+
+    if (!g_nfcManager.tagPresent()) {
+        return;
+    }
+
+    Serial.println(F("[NFC] Tag detected, starting operation"));
+    stateSet(STATE_NFC_ACTIVE);
+
+    NfcCardInfo card;
+    String error;
+    bool success = false;
+
+    if (g_system.nfcJob.command == NFC_CMD_WRITE) {
+        success = g_nfcManager.writeTag(
+            g_system.nfcJob.url,
+            g_system.nfcJob.lockCard,
+            card,
+            &error
+        );
+    } else if (g_system.nfcJob.command == NFC_CMD_READ) {
+        success = g_nfcManager.readTag(card, &error);
+    } else {
+        error = "invalid_command|Unsupported NFC command";
+    }
+
+    g_system.lastCard = card;
+
+    if (success) {
+        _completeNfcSuccess(card);
+        return;
+    }
+
+    _completeNfcError(error);
+}
+
+void Coordinator::_completeNfcSuccess(const NfcCardInfo& card) {
+    Serial.print(F("[NFC] Success command="));
+    Serial.print(nfcCommandName(g_system.nfcJob.command));
+    Serial.print(F(" uid="));
+    Serial.println(card.uid);
+
+    g_system.lastCard = card;
+    g_system.lastCompletedCommand = g_system.nfcJob.command;
+    clearLastError();
+
+    const NfcCommandType command = g_system.nfcJob.command;
+    const String requestId = g_system.nfcJob.requestId;
+    const String url = g_system.nfcJob.url;
+
+    if (command == NFC_CMD_WRITE) {
+        g_mqttManager.publishWriteResult(card, requestId, url, true);
+    } else {
+        g_mqttManager.publishReadResult(card, requestId);
+    }
+
+    _finishJob(STATE_SUCCESS);
+}
+
+void Coordinator::_completeNfcError(const String& error) {
+    const NfcCommandType command = g_system.nfcJob.command;
+    const String requestId = g_system.nfcJob.requestId;
+    const String url = g_system.nfcJob.url;
+
+    const String errorCode = extractErrorCode(error, command);
+    const String message = extractErrorMessage(error, command);
+
+    Serial.print(F("[NFC] Error command="));
+    Serial.print(nfcCommandName(command));
+    Serial.print(F(" code="));
+    Serial.print(errorCode);
+    Serial.print(F(" message="));
+    Serial.println(message);
+
+    g_system.lastCompletedCommand = command;
+    setLastError("nfc", errorCode, message);
+
+    if (command == NFC_CMD_WRITE) {
+        g_mqttManager.publishWriteResult(
+            g_system.lastCard,
+            requestId,
+            url,
+            false,
+            errorCode,
+            message
+        );
+    } else {
+        g_mqttManager.publishHardwareError("nfc", errorCode, message, requestId);
+    }
+
+    _finishJob(STATE_ERROR);
+}
+
+void Coordinator::_handleNfcTimeout() {
+    const unsigned long now = millis();
+    const unsigned long elapsedMs = now - g_system.nfcJob.startedAt;
+
+    Serial.print(F("[NFC] Timeout command="));
+    Serial.print(nfcCommandName(g_system.nfcJob.command));
+    Serial.print(F(" elapsedMs="));
+    Serial.println(elapsedMs);
+
+    g_system.lastCompletedCommand = g_system.nfcJob.command;
+    setLastError("nfc", "timeout", "No NFC tag detected before timeout");
+    g_nfcManager.haltTag();
+
+    if (!g_system.nfcJob.timeoutReported) {
+        g_mqttManager.publishNfcTimeout(
+            g_system.nfcJob.requestId,
+            g_system.nfcJob.command,
+            g_system.nfcJob.timeoutMs,
+            elapsedMs
+        );
+        g_system.nfcJob.timeoutReported = true;
+    }
+
+    _finishJob(STATE_ERROR);
+}
+
+void Coordinator::_finishJob(DeviceState finalState) {
+    Serial.print(F("[NFC] Finish job finalState="));
+    Serial.println(deviceStateName(finalState));
+
+    stateSet(finalState);
+    g_system.stateHoldUntil = millis() + LCD_HOLD_INTERVAL_MS;
+    clearNfcJob();
+    _observedJobStartedAt = 0;
+
+    g_lcd.forceUpdate();
+    g_mqttManager.publishStatus(true);
 }

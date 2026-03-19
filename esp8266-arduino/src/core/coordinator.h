@@ -20,60 +20,33 @@
 // ============================================================================
 class Coordinator {
 public:
-    /**
-     * Initialize all systems
-     */
     void begin();
-    
-    /**
-     * Main loop handler
-     * - Process MQTT
-     * - Poll NFC (with coordination)
-     * - Update LCD (when not paused)
-     * - Handle WiFi reconnection
-     */
     void loop();
-    
-    /**
-     * Check NFC timeout and notify if expired
-     */
-    void checkNfcTimeout();
-    
-    /**
-     * Get coordinator instance
-     */
+
     static Coordinator& getInstance() {
         static Coordinator instance;
         return instance;
     }
-    
+
 private:
     Coordinator() = default;
     ~Coordinator() = default;
-    
-    // Prevent copying
+
     Coordinator(const Coordinator&) = delete;
     Coordinator& operator=(const Coordinator&) = delete;
-    
-    /**
-     * Handle NFC operations based on current mode
-     */
-    void handleNfcOperations();
-    
-    /**
-     * Process detected tag
-     */
-    void processTag();
-    
-    /**
-     * Write tag with pending command
-     */
-    void writeTag();
-    
-    /**
-     * Read tag and publish data
-     */
-    void readTag();
+
+    void _syncIdleState();
+    void _handleNfcJob();
+    void _handleLegacyReadMode();
+    void _prepareActiveJob();
+    void _completeNfcSuccess(const NfcCardInfo& card);
+    void _completeNfcError(const String& error);
+    void _handleNfcTimeout();
+    void _finishJob(DeviceState finalState);
+    bool _jobTimedOut(unsigned long now) const;
+
+    unsigned long _observedJobStartedAt = 0;
+    unsigned long _legacyCooldownUntil = 0;
 };
 
 #endif // COORDINATOR_H

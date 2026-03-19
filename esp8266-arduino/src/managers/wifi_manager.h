@@ -8,6 +8,8 @@
 
 #include <ESP8266WiFi.h>
 #include <WiFiManager.h>
+#include "config/wifi_config.h"
+#include "core/system_state.h"
 
 // ============================================================================
 // WiFi Manager Class
@@ -19,6 +21,11 @@ public:
      * @return true if connected
      */
     bool begin();
+
+    /**
+     * Service runtime connection state
+     */
+    void loop();
     
     /**
      * Check WiFi connection
@@ -40,9 +47,19 @@ public:
      * Get SSID
      */
     String getSSID();
-    
+
+    /**
+     * Get current config portal SSID
+     */
+    String getPortalSSID();
+
 private:
     bool _connected = false;
+    unsigned long _lastReconnectAttempt = 0;
+
+    void _updateStatusFromWiFi();
+    void _startFallbackPortal();
+    void _stopFallbackPortal();
 };
 
 // ============================================================================

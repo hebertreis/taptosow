@@ -7,31 +7,32 @@
 #define NFC_CONFIG_H
 
 // ============================================================================
-// NFC Tag Configuration
-// ============================================================================
-#define SECTOR_COUNT        16      // Number of sectors for 1K cards
-#define NFC_DEFAULT_KEY     0xFF    // Default MIFARE key byte (0xFFFFFFFFFFFF)
-
-// ============================================================================
 // NFC Timing
 // ============================================================================
-#define NFC_INIT_DELAY_MS       500   // Delay after RC522 init
-#define NFC_TAG_DETECT_DELAY_MS 10    // Delay after tag detection
-#define NFC_WRITE_TIMEOUT_MS    5000  // Write operation timeout
-#define NFC_READ_TIMEOUT_MS     3000  // Read operation timeout
+#define NFC_INIT_DELAY_MS           500UL
+#define NFC_TAG_DETECT_DELAY_MS     10UL
+#define NFC_WRITE_TIMEOUT_MS        5000UL
+#define NFC_READ_TIMEOUT_MS         3000UL
 
 // ============================================================================
 // NFC Wait Timeout (when waiting for tag)
 // ============================================================================
 // Time to wait for a tag to appear before timeout
-#define NFC_WAIT_TIMEOUT_MS     30000  // 30 seconds waiting for tag
-#define NFC_WARNING_BEFORE_MS   5000   // Warn 5 seconds before timeout
+#define NFC_WAIT_TIMEOUT_MS         30000UL
+#define NFC_WARNING_BEFORE_MS       5000UL
 
 // ============================================================================
 // NDEF Configuration
 // ============================================================================
-#define NDEF_MAX_RECORDS    4       // Maximum NDEF records to read
-#define NDEF_MAX_PAYLOAD_LEN 256    // Maximum payload length
+#define NDEF_MAX_RECORDS            4
+#define NDEF_MAX_PAYLOAD_LEN        256
+#define NDEF_URI_MAX_LENGTH         240
+
+// NFC job defaults
+#define NFC_DEFAULT_COMMAND_TIMEOUT_SEC 30UL
+#define NFC_MIN_COMMAND_TIMEOUT_SEC     5UL
+#define NFC_MAX_COMMAND_TIMEOUT_SEC     180UL
+#define NFC_TAG_REMOVAL_TIMEOUT_MS      10000UL
 
 // ============================================================================
 // RC522 Antenna Gain
