@@ -11,6 +11,10 @@
 LcdManager g_lcd;
 
 namespace {
+constexpr int kHeaderHeight = 10;
+constexpr int kHeaderTextY = 1;
+constexpr int kBodyStartY = 16;
+
 void prepareI2cForDisplay() {
     Wire.begin(OLED_SDA_PIN, OLED_SCL_PIN);
     delayMicroseconds(I2C_TO_SPI_DELAY_US);
@@ -103,14 +107,14 @@ void LcdManager::showState() {
         return;
     }
 
-    prepareI2cForDisplay();
-
     DeviceState currentState = (DeviceState)g_system.state;
     unsigned long now = millis();
 
     if (currentState == _lastState && (now - _lastUpdate) < LCD_UPDATE_INTERVAL_MS) {
         return;
     }
+
+    prepareI2cForDisplay();
 
     switch (currentState) {
         case STATE_BOOT:
@@ -217,43 +221,43 @@ void LcdManager::_renderDashboard() {
     g_display.setTextColor(SSD1306_WHITE);
     g_display.setTextWrap(false);
 
-    g_display.fillRect(0, 0, 128, 12, SSD1306_WHITE);
+    g_display.fillRect(0, 0, 128, kHeaderHeight, SSD1306_WHITE);
     g_display.setTextColor(SSD1306_BLACK);
-    g_display.setCursor(2, 2);
+    g_display.setCursor(2, kHeaderTextY);
     g_display.print(F("OneTapGo "));
     g_display.print(DEVICE_VERSION);
 
     g_display.setTextColor(SSD1306_WHITE);
 
     if (g_system.isWifiConnected) {
-        g_display.setCursor(0, 14);
+        g_display.setCursor(0, kBodyStartY);
         g_display.print(F("WiFi: "));
         g_display.print(truncateText(g_system.wifiSsid, 15));
 
-        g_display.setCursor(0, 24);
+        g_display.setCursor(0, 26);
         g_display.print(F("IP: "));
         g_display.print(g_system.wifiIp);
     } else {
-        g_display.setCursor(0, 14);
+        g_display.setCursor(0, kBodyStartY);
         g_display.print(F("AP: "));
         g_display.print(truncateText(g_system.portalApSsid, 15));
 
-        g_display.setCursor(0, 24);
+        g_display.setCursor(0, 26);
         g_display.print(F("Senha: "));
         g_display.print(truncateText(g_system.portalApPassword, 12));
     }
 
-    g_display.setCursor(0, 34);
+    g_display.setCursor(0, 36);
     g_display.print(F("ST: "));
     g_display.print(truncateText(stateSummary(), 12));
 
-    g_display.setCursor(0, 44);
+    g_display.setCursor(0, 46);
     g_display.print(F("MQTT: "));
     g_display.print(g_system.isMqttConnected ? F("OK") : F("OFF"));
     g_display.print(F(" NFC: "));
     g_display.print(nfcHardwareLabel());
 
-    g_display.setCursor(0, 54);
+    g_display.setCursor(0, 56);
     if (g_system.nfcJob.active) {
         g_display.print(F("JOB: "));
         g_display.print(nfcCommandName(g_system.nfcJob.command));
@@ -276,13 +280,13 @@ void LcdManager::_renderWifiSetup() {
     g_display.setTextSize(1);
     g_display.setTextColor(SSD1306_WHITE);
 
-    g_display.fillRect(0, 0, 128, 12, SSD1306_WHITE);
+    g_display.fillRect(0, 0, 128, kHeaderHeight, SSD1306_WHITE);
     g_display.setTextColor(SSD1306_BLACK);
-    g_display.setCursor(24, 2);
+    g_display.setCursor(24, kHeaderTextY);
     g_display.print(F("WiFi Setup"));
 
     g_display.setTextColor(SSD1306_WHITE);
-    g_display.setCursor(0, 16);
+    g_display.setCursor(0, kBodyStartY);
     g_display.print(F("AP: "));
     g_display.println(g_system.portalApSsid);
     g_display.print(F("Senha: "));
@@ -298,9 +302,9 @@ void LcdManager::_renderWaiting() {
     g_display.setTextSize(1);
     g_display.setTextColor(SSD1306_WHITE);
 
-    g_display.fillRect(0, 0, 128, 12, SSD1306_WHITE);
+    g_display.fillRect(0, 0, 128, kHeaderHeight, SSD1306_WHITE);
     g_display.setTextColor(SSD1306_BLACK);
-    g_display.setCursor(34, 2);
+    g_display.setCursor(34, kHeaderTextY);
     g_display.print(F("NFC Job"));
 
     g_display.setTextColor(SSD1306_WHITE);
@@ -324,9 +328,9 @@ void LcdManager::_renderProcessing() {
     g_display.setTextSize(1);
     g_display.setTextColor(SSD1306_WHITE);
 
-    g_display.fillRect(0, 0, 128, 12, SSD1306_WHITE);
+    g_display.fillRect(0, 0, 128, kHeaderHeight, SSD1306_WHITE);
     g_display.setTextColor(SSD1306_BLACK);
-    g_display.setCursor(30, 2);
+    g_display.setCursor(30, kHeaderTextY);
     g_display.print(F("Processando"));
 
     g_display.setTextColor(SSD1306_WHITE);

@@ -139,7 +139,8 @@ bool nfcRequestLock() {
     // Small delay to ensure I2C is complete
     delayMicroseconds(I2C_TO_SPI_DELAY_US);
     
-    // Re-initialize SPI/RC522 after I2C
+    // Re-assert SPI ownership on the shared pins before touching RC522.
+    SPI.begin();
     g_mfrc522.PCD_Init();
     g_mfrc522.PCD_SetAntennaGain(g_mfrc522.RxGain_max);
     delay(SPI_STABILIZE_DELAY_MS);
