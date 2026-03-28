@@ -82,6 +82,10 @@
         "function": "proxyPixWebhook"
       },
       {
+        "source": "/api/form-submissions",
+        "function": "saveFormSubmission"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

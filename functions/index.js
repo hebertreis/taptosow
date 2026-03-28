@@ -1,6 +1,8 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
+const { createHash, randomUUID } = require('crypto');
+const { PostHog } = require('posthog-node');
 const tls = require('tls');
 
 // CORS configuration for web requests
@@ -32,6 +34,10 @@ const PIX_WEBHOOK_PROXY_PREFIX = '/api/webhook-pix/';
 const PIX_WEBHOOK_PROXY_TARGET_ORIGIN = 'https://giving.onetapgo.site';
 const PIX_WEBHOOK_PROXY_TIMEOUT_MS = 15000;
 const PIX_WEBHOOK_REDIS_CHANNEL = 'webhook-pix-events';
+const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY || process.env.POSTHOG_PROJECT_API_KEY || 'phc_Cmw1QqdkzzdWkgRuqRNze8vCGmnVnISDjazikU4x1In';
+const POSTHOG_HOST = process.env.POSTHOG_HOST || 'https://us.i.posthog.com';
+const POSTHOG_UI_HOST = process.env.POSTHOG_UI_HOST || 'https://us.posthog.com';
+const GTM_CONTAINER_ID = 'GTM-WSML9VGB';
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -56,6 +62,591 @@ const RESPONSE_HEADER_BLACKLIST = new Set([
 ]);
 
 let hasLoggedMissingPixWebhookRedisUrl = false;
+
+function normalizeLookupValue(value = '') {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+function normalizeAlphaNumeric(value = '') {
+  return normalizeLookupValue(value).replace(/[^a-z0-9]/g, '');
+}
+
+function sanitizeTenantLookup(value = '') {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]/g, '');
+}
+
+function flattenFormValues(value, values = []) {
+  if (value == null) {
+    return values;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((entry) => flattenFormValues(entry, values));
+    return values;
+  }
+
+  if (typeof value === 'object') {
+    Object.values(value).forEach((entry) => flattenFormValues(entry, values));
+    return values;
+  }
+
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    values.push(String(value));
+  }
+
+  return values;
+}
+
+function firstNonEmptyValue(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function buildFormSubmissionSearchFields({ churchSlug, churchName, formType, formData, destination, sourcePath }) {
+  const payload = formData && typeof formData === 'object' && !Array.isArray(formData) ? formData : {};
+  const flattenedValues = flattenFormValues(payload);
+  const searchText = [
+    churchSlug,
+    churchName,
+    formType,
+    destination,
+    sourcePath,
+    ...flattenedValues,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const fullName = firstNonEmptyValue(
+    payload.fullName,
+    payload.name,
+    payload.nome,
+    payload.personName,
+    payload.contactName
+  );
+
+  const email = firstNonEmptyValue(
+    payload.email,
+    payload.emailAddress,
+    payload.mail
+  );
+
+  const phone = firstNonEmptyValue(
+    payload.phone,
+    payload.whatsapp,
+    payload.telefone,
+    payload.mobile,
+    payload.celular
+  );
+
+  const document = firstNonEmptyValue(
+    payload.document,
+    payload.documentNumber,
+    payload.cpf,
+    payload.cnpj,
+    payload.cpfCnpj
+  );
+
+  return {
+    tenant: sanitizeTenantLookup(churchSlug),
+    searchTextNormalized: normalizeLookupValue(searchText),
+    fullName,
+    fullNameNormalized: fullName ? normalizeLookupValue(fullName) : null,
+    email: email ? email.toLowerCase() : null,
+    emailNormalized: email ? normalizeLookupValue(email) : null,
+    phone,
+    phoneDigits: phone ? String(phone).replace(/\D/g, '') : null,
+    document,
+    documentDigits: document ? String(document).replace(/\D/g, '') : null,
+  };
+}
+
+function buildSubmissionLookupIndex(submission) {
+  const formData = submission?.formData && typeof submission.formData === 'object' && !Array.isArray(submission.formData) ?
+    submission.formData :
+    {};
+  const metadataFields = buildFormSubmissionSearchFields({
+    churchSlug: submission?.tenant || submission?.churchSlug,
+    churchName: submission?.churchName,
+    formType: submission?.formType,
+    formData,
+    destination: submission?.destination,
+    sourcePath: submission?.sourcePath
+  });
+
+  return {
+    tenant: sanitizeTenantLookup(submission?.tenant || submission?.churchSlug),
+    formType: typeof submission?.formType === 'string' ? submission.formType.trim() : '',
+    searchTextNormalized: metadataFields.searchTextNormalized,
+    fullNameNormalized: metadataFields.fullNameNormalized,
+    emailNormalized: metadataFields.emailNormalized,
+    phoneDigits: metadataFields.phoneDigits,
+    documentDigits: metadataFields.documentDigits,
+  };
+}
+
+function matchesSubmissionFilters(lookup, filters) {
+  if (filters.formType && lookup.formType !== filters.formType) {
+    return false;
+  }
+
+  if (filters.name && !(lookup.fullNameNormalized || '').includes(filters.name)) {
+    return false;
+  }
+
+  if (filters.email && !(lookup.emailNormalized || '').includes(filters.email)) {
+    return false;
+  }
+
+  if (filters.phone && !(lookup.phoneDigits || '').includes(filters.phone)) {
+    return false;
+  }
+
+  if (filters.document && !(lookup.documentDigits || '').includes(filters.document)) {
+    return false;
+  }
+
+  if (filters.q) {
+    const exactDocumentMatch = (lookup.documentDigits || '').includes(filters.qAlphaNumeric);
+    const exactPhoneMatch = (lookup.phoneDigits || '').includes(filters.qDigits);
+    const textMatch = (lookup.searchTextNormalized || '').includes(filters.q);
+
+    if (!textMatch && !exactDocumentMatch && !exactPhoneMatch) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function serializeSubmission(doc) {
+  const data = doc.data();
+  const createdAt = data.createdAt && typeof data.createdAt.toDate === 'function' ?
+    data.createdAt.toDate().toISOString() :
+    null;
+  const updatedAt = data.updatedAt && typeof data.updatedAt.toDate === 'function' ?
+    data.updatedAt.toDate().toISOString() :
+    null;
+
+  return {
+    id: doc.id,
+    tenant: data.tenant || data.churchSlug || null,
+    churchSlug: data.churchSlug || null,
+    churchName: data.churchName || null,
+    formType: data.formType || null,
+    formData: data.formData || {},
+    destination: data.destination || null,
+    sourcePath: data.sourcePath || null,
+    referer: data.referer || null,
+    origin: data.origin || null,
+    createdAt,
+    updatedAt,
+  };
+}
+
+function parseFirestoreTimestamp(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value.toDate === 'function') {
+    return value.toDate().toISOString();
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return null;
+}
+
+function getTagListFilter(req) {
+  const candidates = [
+    ['tenant', req.query.tenant],
+    ['slug', req.query.slug],
+    ['client_slug', req.query.client_slug]
+  ];
+
+  for (const [field, rawValue] of candidates) {
+    const value = sanitizeTenantLookup(rawValue);
+    if (value) {
+      return { field, value };
+    }
+  }
+
+  return null;
+}
+
+function parseTagListLimit(rawValue) {
+  if (rawValue == null || rawValue === '') {
+    return 200;
+  }
+
+  const parsed = Number.parseInt(String(rawValue), 10);
+
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 500) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function encodeTagCursor(docId) {
+  return Buffer.from(String(docId), 'utf8').toString('base64url');
+}
+
+function decodeTagCursor(cursor) {
+  if (typeof cursor !== 'string' || !cursor.trim()) {
+    return null;
+  }
+
+  try {
+    const normalizedCursor = cursor.trim();
+    const decoded = Buffer.from(normalizedCursor, 'base64url').toString('utf8');
+
+    if (!decoded) {
+      return null;
+    }
+
+    if (encodeTagCursor(decoded) !== normalizedCursor) {
+      return null;
+    }
+
+    return decoded;
+  } catch (error) {
+    return null;
+  }
+}
+
+function serializeTag(doc) {
+  const data = doc.data();
+
+  return {
+    id: doc.id,
+    uid: data.uid || null,
+    tenant: data.tenant || null,
+    slug: data.slug || null,
+    client_slug: data.client_slug || null,
+    status: data.status || null,
+    redirect_url: data.redirect_url || null,
+    redirect_override: data.redirect_override || null,
+    target_url: data.target_url || null,
+    url: data.url || null,
+    redirectUrl: data.redirectUrl || null,
+    scan_count: typeof data.scan_count === 'number' ? data.scan_count : 0,
+    provisioned_by: data.provisioned_by || null,
+    provisioned_at: parseFirestoreTimestamp(data.provisioned_at),
+    last_scan_at: parseFirestoreTimestamp(data.last_scan_at),
+    updated_at: parseFirestoreTimestamp(data.updated_at),
+    updatedAt: parseFirestoreTimestamp(data.updatedAt),
+    createdAt: parseFirestoreTimestamp(data.createdAt),
+  };
+}
+
+function buildTagKpis(snapshot, filter) {
+  const statusBreakdown = {};
+  const activeUrls = new Map();
+  let totalScans = 0;
+  let activeTags = 0;
+  let inactiveTags = 0;
+  let tagsWithScans = 0;
+  let tagsWithoutScans = 0;
+  let tagsWithRedirect = 0;
+  let tagsWithoutRedirect = 0;
+  let latestScanDate = null;
+  let latestUpdateDate = null;
+
+  snapshot.docs.forEach((doc) => {
+    const data = doc.data();
+    const status = typeof data.status === 'string' && data.status.trim() ? data.status.trim().toLowerCase() : 'unknown';
+    const scanCount = typeof data.scan_count === 'number' ? data.scan_count : 0;
+    const redirectUrl = [
+      data.redirect_url,
+      data.redirect_override,
+      data.target_url,
+      data.url,
+      data.redirectUrl
+    ].find((value) => typeof value === 'string' && value.trim());
+    const lastScanAt = data.last_scan_at && typeof data.last_scan_at.toDate === 'function' ? data.last_scan_at.toDate() : null;
+    const updatedAt = [
+      data.updated_at,
+      data.updatedAt,
+      data.createdAt
+    ].find((value) => value && typeof value.toDate === 'function');
+    const updatedAtDate = updatedAt ? updatedAt.toDate() : null;
+
+    statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
+    totalScans += scanCount;
+
+    if (status === 'active') {
+      activeTags += 1;
+    } else {
+      inactiveTags += 1;
+    }
+
+    if (scanCount > 0) {
+      tagsWithScans += 1;
+    } else {
+      tagsWithoutScans += 1;
+    }
+
+    if (redirectUrl) {
+      tagsWithRedirect += 1;
+      activeUrls.set(redirectUrl, (activeUrls.get(redirectUrl) || 0) + 1);
+    } else {
+      tagsWithoutRedirect += 1;
+    }
+
+    if (lastScanAt && (!latestScanDate || lastScanAt > latestScanDate)) {
+      latestScanDate = lastScanAt;
+    }
+
+    if (updatedAtDate && (!latestUpdateDate || updatedAtDate > latestUpdateDate)) {
+      latestUpdateDate = updatedAtDate;
+    }
+  });
+
+  return {
+    success: true,
+    filters: {
+      field: filter.field,
+      value: filter.value,
+    },
+    kpis: {
+      total_tags: snapshot.size,
+      active_tags: activeTags,
+      inactive_tags: inactiveTags,
+      tags_with_scans: tagsWithScans,
+      tags_without_scans: tagsWithoutScans,
+      tags_with_redirect: tagsWithRedirect,
+      tags_without_redirect: tagsWithoutRedirect,
+      total_scans: totalScans,
+      average_scans_per_tag: snapshot.size > 0 ? Number((totalScans / snapshot.size).toFixed(2)) : 0,
+      latest_scan_at: latestScanDate ? latestScanDate.toISOString() : null,
+      latest_updated_at: latestUpdateDate ? latestUpdateDate.toISOString() : null,
+      status_breakdown: statusBreakdown,
+      active_urls: Array.from(activeUrls.entries())
+        .sort((left, right) => {
+          if (right[1] !== left[1]) {
+            return right[1] - left[1];
+          }
+
+          return left[0].localeCompare(right[0]);
+        })
+        .map(([url, count]) => ({ url, count })),
+    }
+  };
+}
+
+async function listTags(req, res) {
+  const filter = getTagListFilter(req);
+
+  if (!filter) {
+    return res.status(400).json({
+      success: false,
+      error: 'one of tenant, slug, or client_slug is required'
+    });
+  }
+
+  const limit = parseTagListLimit(req.query.limit);
+
+  if (!limit) {
+    return res.status(400).json({
+      success: false,
+      error: 'limit must be a positive integer'
+    });
+  }
+
+  const cursor = req.query.cursor ? decodeTagCursor(req.query.cursor) : null;
+
+  if (req.query.cursor && !cursor) {
+    return res.status(400).json({
+      success: false,
+      error: 'cursor is invalid'
+    });
+  }
+
+  try {
+    const db = admin.firestore();
+    let query = db.collection('tags')
+      .where(filter.field, '==', filter.value)
+      .orderBy(admin.firestore.FieldPath.documentId())
+      .limit(limit + 1);
+
+    if (cursor) {
+      query = query.startAfter(cursor);
+    }
+
+    const snapshot = await query.get();
+    const hasMore = snapshot.docs.length > limit;
+    const pageDocs = hasMore ? snapshot.docs.slice(0, limit) : snapshot.docs;
+    const nextCursor = hasMore && pageDocs.length > 0 ? encodeTagCursor(pageDocs[pageDocs.length - 1].id) : null;
+
+    return res.status(200).json({
+      success: true,
+      filters: {
+        field: filter.field,
+        value: filter.value,
+        limit
+      },
+      count: pageDocs.length,
+      tags: pageDocs.map((doc) => serializeTag(doc)),
+      pagination: {
+        nextCursor,
+        hasMore
+      }
+    });
+  } catch (error) {
+    logger.error('Error listing tags', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal Server Error'
+    });
+  }
+}
+
+async function getTagKpis(req, res) {
+  const filter = getTagListFilter(req);
+
+  if (!filter) {
+    return res.status(400).json({
+      success: false,
+      error: 'one of tenant, slug, or client_slug is required'
+    });
+  }
+
+  try {
+    const db = admin.firestore();
+    const snapshot = await db.collection('tags')
+      .where(filter.field, '==', filter.value)
+      .get();
+
+    return res.status(200).json(buildTagKpis(snapshot, filter));
+  } catch (error) {
+    logger.error('Error fetching tag KPIs', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal Server Error'
+    });
+  }
+}
+
+async function queryFormSubmissions(req, res) {
+  const tenantParam = req.query.tenant || req.query.churchSlug || req.query.slug;
+  const tenant = sanitizeTenantLookup(tenantParam);
+
+  if (!tenant) {
+    return res.status(400).json({
+      success: false,
+      error: 'tenant is required'
+    });
+  }
+
+  const formType = typeof req.query.formType === 'string' && req.query.formType.trim() ?
+    req.query.formType.trim() :
+    null;
+  const name = typeof req.query.name === 'string' && req.query.name.trim() ?
+    normalizeLookupValue(req.query.name) :
+    null;
+  const email = typeof req.query.email === 'string' && req.query.email.trim() ?
+    normalizeLookupValue(req.query.email) :
+    null;
+  const phone = typeof req.query.phone === 'string' && req.query.phone.trim() ?
+    String(req.query.phone).replace(/\D/g, '') :
+    null;
+  const document = typeof req.query.document === 'string' && req.query.document.trim() ?
+    String(req.query.document).replace(/\D/g, '') :
+    null;
+  const q = typeof req.query.q === 'string' && req.query.q.trim() ?
+    normalizeLookupValue(req.query.q) :
+    null;
+  const rawLimit = Number.parseInt(String(req.query.limit || '20'), 10);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 100) : 20;
+  const scanLimit = Math.min(Math.max(limit * 5, 20), 300);
+
+  const filters = {
+    formType,
+    name,
+    email,
+    phone,
+    document,
+    q,
+    qDigits: q ? q.replace(/\D/g, '') : '',
+    qAlphaNumeric: q ? normalizeAlphaNumeric(q) : '',
+  };
+
+  try {
+    const db = admin.firestore();
+    let snapshot;
+
+    const primaryQuery = db.collection('form_submissions')
+      .where('tenant', '==', tenant)
+      .orderBy('createdAt', 'desc')
+      .limit(scanLimit);
+
+    try {
+      snapshot = await (formType ?
+        primaryQuery.where('formType', '==', formType).get() :
+        primaryQuery.get());
+    } catch (tenantIndexedError) {
+      logger.warn('queryFormSubmissions: falling back to churchSlug filter', {
+        tenant,
+        error: tenantIndexedError.message
+      });
+    }
+
+    if (!snapshot || snapshot.empty) {
+      let fallbackQuery = db.collection('form_submissions')
+        .where('churchSlug', '==', tenant)
+        .orderBy('createdAt', 'desc')
+        .limit(scanLimit);
+
+      if (formType) {
+        fallbackQuery = fallbackQuery.where('formType', '==', formType);
+      }
+
+      snapshot = await fallbackQuery.get();
+    }
+
+    const results = snapshot.docs
+      .filter((doc) => matchesSubmissionFilters(buildSubmissionLookupIndex(doc.data()), filters))
+      .slice(0, limit)
+      .map((doc) => serializeSubmission(doc));
+
+    return res.status(200).json({
+      success: true,
+      filters: {
+        tenant,
+        ...(formType ? { formType } : {}),
+        ...(name ? { name: req.query.name } : {}),
+        ...(email ? { email: req.query.email } : {}),
+        ...(phone ? { phone: req.query.phone } : {}),
+        ...(document ? { document: req.query.document } : {}),
+        ...(q ? { q: req.query.q } : {}),
+        limit,
+      },
+      count: results.length,
+      submissions: results
+    });
+  } catch (error) {
+    logger.error('Error querying form submissions', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Internal Server Error'
+    });
+  }
+}
 
 function extractPixWebhookCnpj(pathname = '') {
   const normalizedPath = pathname.endsWith('/') && pathname.length > PIX_WEBHOOK_PROXY_PREFIX.length ?
@@ -618,6 +1209,93 @@ exports.logEvent = onRequest({ cors: true, maxInstances: 10 }, async (req, res) 
     }
 });
 
+exports.saveFormSubmission = onRequest({ cors: true, maxInstances: 10 }, async (req, res) => {
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+
+    if (req.method === 'GET') {
+        return queryFormSubmissions(req, res);
+    }
+
+    if (req.method !== 'POST') {
+        res.set('Allow', 'GET, POST, OPTIONS');
+        res.status(405).json({ success: false, error: 'Method Not Allowed' });
+        return;
+    }
+
+    try {
+        const {
+            churchSlug,
+            churchName,
+            formType,
+            formData,
+            destination,
+            sourcePath
+        } = req.body || {};
+
+        if (!churchSlug || !formType || !formData || typeof formData !== 'object' || Array.isArray(formData)) {
+            logger.warn('saveFormSubmission: invalid payload', { body: req.body });
+            return res.status(400).json({
+                success: false,
+                error: 'Missing churchSlug, formType or formData'
+            });
+        }
+
+        const db = admin.firestore();
+        const searchFields = buildFormSubmissionSearchFields({
+            churchSlug,
+            churchName,
+            formType,
+            formData,
+            destination,
+            sourcePath: sourcePath ? String(sourcePath).trim() : req.path,
+        });
+        const submissionRef = await db.collection('form_submissions').add({
+            churchSlug: String(churchSlug).trim(),
+            tenant: searchFields.tenant,
+            churchName: churchName ? String(churchName).trim() : null,
+            formType: String(formType).trim(),
+            formData,
+            destination: destination ? String(destination).trim() : null,
+            sourcePath: sourcePath ? String(sourcePath).trim() : req.path,
+            referer: req.get('referer') || null,
+            origin: req.get('origin') || null,
+            userAgent: req.get('user-agent') || null,
+            ipAddress: req.ip || null,
+            searchTextNormalized: searchFields.searchTextNormalized,
+            fullName: searchFields.fullName,
+            fullNameNormalized: searchFields.fullNameNormalized,
+            email: searchFields.email,
+            emailNormalized: searchFields.emailNormalized,
+            phone: searchFields.phone,
+            phoneDigits: searchFields.phoneDigits,
+            document: searchFields.document,
+            documentDigits: searchFields.documentDigits,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        logger.info('Form submission saved', {
+            submissionId: submissionRef.id,
+            churchSlug,
+            formType
+        });
+
+        return res.status(200).json({
+            success: true,
+            submissionId: submissionRef.id
+        });
+    } catch (error) {
+        logger.error('Error saving form submission', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal Server Error'
+        });
+    }
+});
+
 
 // Create Payment Intent for Stripe
 exports.createPaymentIntent = onRequest(
@@ -1057,6 +1735,150 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
     const db = admin.firestore();
 
     try {
+    const getHeader = (name) => {
+        const value = req.get(name);
+        return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
+    };
+
+    const escapeHtml = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const toSerializableValue = (value) => {
+        if (value == null) return undefined;
+        if (Array.isArray(value)) {
+            const normalized = value
+                .map((entry) => entry == null ? undefined : String(entry).trim())
+                .filter(Boolean);
+            return normalized.length > 0 ? normalized.join(', ') : undefined;
+        }
+        if (['string', 'number', 'boolean'].includes(typeof value)) {
+            const normalized = String(value).trim();
+            return normalized.length > 0 ? normalized : undefined;
+        }
+        if (value instanceof Date) {
+            return value.toISOString();
+        }
+        return undefined;
+    };
+
+    const flattenPrimitiveEntries = (source, prefix) => {
+        if (!source || typeof source !== 'object') return {};
+
+        return Object.entries(source).reduce((accumulator, [key, rawValue]) => {
+            const value = toSerializableValue(rawValue);
+            if (value === undefined) return accumulator;
+
+            const normalizedKey = `${prefix}_${key}`
+                .replace(/[^a-zA-Z0-9_]/g, '_')
+                .replace(/_+/g, '_')
+                .replace(/^_+|_+$/g, '')
+                .toLowerCase();
+
+            if (normalizedKey) {
+                accumulator[normalizedKey] = value;
+            }
+            return accumulator;
+        }, {});
+    };
+
+    const buildDistinctId = ({ tagId, routeType, clientSlug }) => {
+        const explicitId = getHeader('X-PostHog-Distinct-Id')
+            || getHeader('X-GA-Client-ID')
+            || toSerializableValue(req.query?.ph_distinct_id)
+            || toSerializableValue(req.query?.distinct_id)
+            || toSerializableValue(req.query?.cid);
+
+        if (explicitId) {
+            return explicitId;
+        }
+
+        const fingerprintSource = [
+            tagId || 'auto',
+            routeType || 'unknown',
+            clientSlug || 'fallback',
+            req.ip || '',
+            getHeader('User-Agent') || '',
+            getHeader('Accept-Language') || '',
+            getHeader('X-Forwarded-For') || ''
+        ].join('|');
+
+        return `scan_${createHash('sha256').update(fingerprintSource).digest('hex').slice(0, 32)}`;
+    };
+
+    const buildScanContext = ({
+        tagId,
+        clientSlug,
+        targetUrl,
+        redirectSource,
+        routeType,
+        fallbackUsed = false,
+        tagFound = false,
+        tagData = {},
+        statusCode = 200
+    }) => {
+        const host = getHeader('host') || req.hostname || 'onetapgo.site';
+        const protocol = getHeader('x-forwarded-proto') || req.protocol || 'https';
+        const origin = `${protocol}://${host}`;
+        let resolvedDestination;
+        try {
+            resolvedDestination = new URL(targetUrl || '/', origin);
+        } catch (error) {
+            resolvedDestination = new URL('/', origin);
+        }
+        const queryEntries = flattenPrimitiveEntries(req.query, 'query');
+        const tagEntries = flattenPrimitiveEntries(tagData, 'tag');
+        const rawQuery = req.originalUrl?.includes('?') ? req.originalUrl.split('?').slice(1).join('?') : '';
+
+        const properties = {
+            event_origin: 'firebase_function',
+            route_type: routeType,
+            tag_id: tagId || 'auto_redirect',
+            client_slug: clientSlug || 'fallback',
+            redirect_source: redirectSource,
+            redirect_url: resolvedDestination.toString(),
+            redirect_host: resolvedDestination.host,
+            redirect_pathname: resolvedDestination.pathname,
+            redirect_search: resolvedDestination.search,
+            status_code: statusCode,
+            fallback_used: fallbackUsed,
+            tag_found: tagFound,
+            scan_method: req.method,
+            scan_path: req.path,
+            scan_original_url: req.originalUrl || req.url,
+            scan_query_string: rawQuery,
+            scan_protocol: protocol,
+            scan_host: host,
+            scan_hostname: req.hostname,
+            scan_ip: req.ip,
+            user_agent: getHeader('User-Agent'),
+            referer: getHeader('Referer'),
+            origin: getHeader('Origin'),
+            accept_language: getHeader('Accept-Language'),
+            x_forwarded_for: getHeader('X-Forwarded-For'),
+            x_forwarded_host: getHeader('X-Forwarded-Host'),
+            x_forwarded_proto: getHeader('X-Forwarded-Proto'),
+            x_cloud_trace_context: getHeader('X-Cloud-Trace-Context'),
+            sec_ch_ua: getHeader('Sec-CH-UA'),
+            sec_ch_ua_mobile: getHeader('Sec-CH-UA-Mobile'),
+            sec_ch_ua_platform: getHeader('Sec-CH-UA-Platform'),
+            request_id: getHeader('Function-Execution-Id') || randomUUID(),
+            scan_medium: routeType === 'go_redirect' ? 'qr_or_link' : 'nfc_or_qrcode'
+        };
+
+        return {
+            distinctId: buildDistinctId({ tagId, routeType, clientSlug }),
+            properties: {
+                ...properties,
+                ...queryEntries,
+                ...tagEntries
+            }
+        };
+    };
+
     const addUtmParameters = (url, tagId, campaign) => {
         if (!url) return url;
         const timestamp = new Date().toISOString();
@@ -1106,6 +1928,150 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
         } catch (error) {
             logger.error("Error sending GA4 event", error.message);
         }
+    };
+
+    const sendPosthogEvent = async (context) => {
+        if (!POSTHOG_API_KEY) {
+            logger.warn('PostHog disabled: missing POSTHOG_API_KEY');
+            return;
+        }
+
+        const posthog = new PostHog(POSTHOG_API_KEY, {
+            host: POSTHOG_HOST,
+            flushAt: 1,
+            flushInterval: 0,
+            requestTimeout: 3000
+        });
+
+        try {
+            posthog.capture({
+                distinctId: context.distinctId,
+                event: 'redirect_scan',
+                properties: context.properties
+            });
+            await posthog._shutdown(3000);
+            logger.info('PostHog redirect_scan sent successfully', {
+                distinctId: context.distinctId,
+                routeType: context.properties.route_type,
+                tagId: context.properties.tag_id
+            });
+        } catch (error) {
+            logger.error('Error sending PostHog event', error.message || error);
+        }
+    };
+
+    const renderRedirectPage = ({
+        destinationUrl,
+        message = 'Aguarde, estamos redirecionando voce...',
+        title = 'Redirecionando...',
+        scanContext
+    }) => {
+        const escapedDestination = escapeHtml(destinationUrl);
+        const escapedMessage = escapeHtml(message);
+        const escapedTitle = escapeHtml(title);
+        const clientPayload = JSON.stringify({
+            distinctId: scanContext.distinctId,
+            event: 'redirect_scan_page_loaded',
+            properties: {
+                route_type: scanContext.properties.route_type,
+                tag_id: scanContext.properties.tag_id,
+                client_slug: scanContext.properties.client_slug,
+                redirect_url: scanContext.properties.redirect_url,
+                redirect_source: scanContext.properties.redirect_source
+            }
+        });
+
+        return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapedTitle}</title>
+  <meta http-equiv="refresh" content="1;url=${escapedDestination}">
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: 'onetapgo_redirect_interstitial',
+      route_type: ${JSON.stringify(scanContext.properties.route_type)},
+      tag_id: ${JSON.stringify(scanContext.properties.tag_id)},
+      client_slug: ${JSON.stringify(scanContext.properties.client_slug)},
+      redirect_source: ${JSON.stringify(scanContext.properties.redirect_source)},
+      redirect_url: ${JSON.stringify(scanContext.properties.redirect_url)}
+    });
+  </script>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':Date.now(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_CONTAINER_ID}');</script>
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog&&window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split('.');2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement('script')).type='text/javascript',p.crossOrigin='anonymous',p.async=!0,p.src=s.api_host.replace('.i.posthog.com','-assets.i.posthog.com')+'/static/array.js',(r=t.getElementsByTagName('script')[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a='posthog',u.people=u.people||[],u.toString=function(t){var e='posthog';return'posthog'!==a&&(e+='.'+a),t||(e+=' (stub)'),e},u.people.toString=function(){return u.toString(1)+'.people (stub)'},o='init capture identify setPersonProperties reset'.split(' '),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init(${JSON.stringify(POSTHOG_API_KEY)}, { api_host: ${JSON.stringify(POSTHOG_HOST)}, ui_host: ${JSON.stringify(POSTHOG_UI_HOST)}, autocapture: true });
+    try {
+      var payload = ${clientPayload};
+      posthog.capture(payload.event, payload.properties);
+    } catch (error) {}
+  </script>
+  <style>
+    :root { color-scheme: light; --bg:#f6f1e8; --ink:#1f2937; --muted:#6b7280; --card:#fffdf8; --accent:#c26a2d; }
+    * { box-sizing: border-box; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: radial-gradient(circle at top, #fffaf2 0%, var(--bg) 60%, #efe2cf 100%); color:var(--ink); }
+    main { width:min(560px,100%); background:var(--card); border:1px solid rgba(194,106,45,.15); border-radius:24px; padding:32px 28px; box-shadow:0 18px 50px rgba(31,41,55,.08); text-align:center; }
+    h1 { margin:0 0 12px; font-size:clamp(1.5rem,4vw,2rem); }
+    p { margin:0; line-height:1.6; }
+    a { color:var(--accent); word-break:break-word; }
+    .spinner { width:44px; height:44px; margin:0 auto 20px; border-radius:999px; border:4px solid rgba(194,106,45,.15); border-top-color:var(--accent); animation:spin .9s linear infinite; }
+    .hint { margin-top:16px; color:var(--muted); font-size:.95rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${GTM_CONTAINER_ID}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  <main>
+    <div class="spinner" aria-hidden="true"></div>
+    <h1>${escapedTitle}</h1>
+    <p>${escapedMessage}</p>
+    <p class="hint">Se o redirecionamento nao acontecer automaticamente, acesse <a href="${escapedDestination}" rel="noopener noreferrer">${escapedDestination}</a>.</p>
+  </main>
+  <script>
+    setTimeout(function () {
+      window.location.replace(${JSON.stringify(destinationUrl)});
+    }, 180);
+  </script>
+</body>
+</html>`;
+    };
+
+    const respondWithTrackedRedirect = async ({
+        destinationUrl,
+        tagId,
+        clientSlug,
+        redirectSource,
+        routeType,
+        fallbackUsed = false,
+        tagFound = false,
+        tagData = {}
+    }) => {
+        const redirectedUrl = addUtmParameters(destinationUrl, tagId, clientSlug);
+        const scanContext = buildScanContext({
+            tagId,
+            clientSlug,
+            targetUrl: redirectedUrl,
+            redirectSource,
+            routeType,
+            fallbackUsed,
+            tagFound,
+            tagData,
+            statusCode: 200
+        });
+
+        await Promise.allSettled([
+            sendGa4Event(tagId || 'auto_redirect', clientSlug || 'fallback', req),
+            sendPosthogEvent(scanContext)
+        ]);
+
+        res.status(200).set('Content-Type', 'text/html; charset=utf-8');
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        return res.send(renderRedirectPage({
+            destinationUrl: redirectedUrl,
+            scanContext
+        }));
     };
 
         // 1. Handling Sync (?deviceId=...)
@@ -1179,39 +2145,73 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                     ].find((value) => typeof value === 'string' && value.trim().length > 0);
 
                     if (targetUrl) {
-                        sendGa4Event(id, clientSlug, req).catch(e => logger.error('GA4 error', e));
                         console.info(`Redirecting tag ${id} to URL: ${targetUrl} with clientSlug: ${clientSlug}`);
-                    return res.redirect(302, addUtmParameters(targetUrl, id, clientSlug));
+                        return respondWithTrackedRedirect({
+                            destinationUrl: targetUrl,
+                            tagId: id,
+                            clientSlug,
+                            redirectSource: 'tag_redirect_url',
+                            routeType: 'tag_redirect',
+                            tagFound: true,
+                            tagData
+                        });
                     }
 
                     if (clientSlug && clientSlug !== "fallback") {
                         const clientDoc = await db.collection('clients').doc(clientSlug).get();
                         const clientBaseUrl = clientDoc.data()?.base_url;
                         if (typeof clientBaseUrl === 'string' && clientBaseUrl.trim().length > 0) {
-                            sendGa4Event(id, clientSlug, req).catch(e => logger.error('GA4 error', e));
                             console.info(`Redirecting tag ${id} to client's base URL: ${clientBaseUrl} with clientSlug: ${clientSlug}`);
-                            return res.redirect(302, addUtmParameters(clientBaseUrl, id, clientSlug));
+                            return respondWithTrackedRedirect({
+                                destinationUrl: clientBaseUrl,
+                                tagId: id,
+                                clientSlug,
+                                redirectSource: 'client_base_url',
+                                routeType: 'tag_redirect',
+                                tagFound: true,
+                                tagData
+                            });
                         }
                     }
                 }
                 // If tag not found or has no URL, use fallback
                 const fallbackDoc = await db.doc('site_config/fallback').get();
                 const fallbackUrl = fallbackDoc.exists ? fallbackDoc.data().url : '/';
-                sendGa4Event(id || 'unknown', 'fallback', req).catch(e => logger.error('GA4 error', e));
                 console.info(`Tag ${id} not found or no URL. Redirecting to fallback: ${fallbackUrl}`);
-                return res.redirect(302, addUtmParameters(fallbackUrl, id || "unknown", "fallback"));
+                return respondWithTrackedRedirect({
+                    destinationUrl: fallbackUrl,
+                    tagId: id || 'unknown',
+                    clientSlug: 'fallback',
+                    redirectSource: 'fallback',
+                    routeType: 'tag_redirect',
+                    fallbackUsed: true,
+                    tagFound: false
+                });
 
             } else {
                 // Handle /a (same as old redirectAuto)
                 const doc = await db.doc('site_config/auto_redirect').get();
                 if (doc.exists && doc.data().url) {
-                    const { url, type } = doc.data();
-                    const code = type === 301 ? 301 : 302;
-                    sendGa4Event('auto_redirect', 'fallback', req).catch(e => logger.error('GA4 error', e));
-                    return res.redirect(code, addUtmParameters(url, "auto_redirect", "fallback"));
+                    const { url } = doc.data();
+                    return respondWithTrackedRedirect({
+                        destinationUrl: url,
+                        tagId: 'auto_redirect',
+                        clientSlug: 'fallback',
+                        redirectSource: 'auto_redirect',
+                        routeType: 'auto_redirect',
+                        tagFound: true,
+                        tagData: doc.data()
+                    });
                 }
-                sendGa4Event('auto_redirect', 'fallback', req).catch(e => logger.error('GA4 error', e));
-                return res.redirect(302, addUtmParameters('/', "auto_redirect", "fallback")); // Default fallback
+                return respondWithTrackedRedirect({
+                    destinationUrl: '/',
+                    tagId: 'auto_redirect',
+                    clientSlug: 'fallback',
+                    redirectSource: 'auto_redirect_fallback',
+                    routeType: 'auto_redirect',
+                    fallbackUsed: true,
+                    tagFound: false
+                }); // Default fallback
             }
         }
 
@@ -1232,11 +2232,28 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 });
                 const clientDoc = await db.collection('clients').doc(slug).get();
                 target_url = tagData.redirect_override || clientDoc.data()?.base_url || '/';
+                return respondWithTrackedRedirect({
+                    destinationUrl: target_url,
+                    tagId: uid,
+                    clientSlug: slug,
+                    redirectSource: tagData.redirect_override ? 'tag_redirect_override' : 'client_base_url',
+                    routeType: 'go_redirect',
+                    tagFound: true,
+                    tagData
+                });
             } else {
                 const clientDoc = await db.collection('clients').doc(slug).get();
                 target_url = clientDoc.data()?.base_url || '/';
+                return respondWithTrackedRedirect({
+                    destinationUrl: target_url,
+                    tagId: uid,
+                    clientSlug: slug,
+                    redirectSource: clientDoc.exists ? 'client_base_url' : 'go_fallback',
+                    routeType: 'go_redirect',
+                    fallbackUsed: !clientDoc.exists,
+                    tagFound: false
+                });
             }
-            return res.redirect(302, target_url);
         }
 
         res.status(404).send("IoT Path Not Found");
@@ -1328,6 +2345,85 @@ function normalizePaymentMethods(paymentMethods = {}) {
   return { primary, secondary };
 }
 
+function sanitizeSectorId(value = '') {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-_]/g, '');
+}
+
+function normalizeSectors(sectors) {
+  if (!Array.isArray(sectors) || sectors.length === 0) {
+    return [
+      {
+        internal: 'default',
+        name: 'Padrao'
+      }
+    ];
+  }
+
+  return sectors
+    .map((sector) => {
+      const internal = sanitizeSectorId(sector?.internal || sector?.id || '');
+      const name = typeof sector?.name === 'string' ? sector.name.trim() : '';
+
+      if (!internal || !name) {
+        return null;
+      }
+
+      return { internal, name };
+    })
+    .filter(Boolean);
+}
+
+function validateSectors(sectors) {
+  if (sectors == null) {
+    return null;
+  }
+
+  if (!Array.isArray(sectors)) {
+    return 'sectors must be an array';
+  }
+
+  const invalidSector = sectors.some((sector) => {
+    const internal = sanitizeSectorId(sector?.internal || sector?.id || '');
+    return !sector || !internal || typeof sector.name !== 'string' || !sector.name.trim();
+  });
+
+  if (invalidSector) {
+    return 'each sectors item must include non-empty fields: internal and name';
+  }
+
+  return null;
+}
+
+async function ensureTenantSectors({ tenantRef, sectors }) {
+  const sectorsCollection = tenantRef.collection('sectors');
+  const normalizedSectors = normalizeSectors(sectors);
+  const existingSectors = await sectorsCollection.get();
+  const existingSectorIds = new Set(existingSectors.docs.map((doc) => doc.id));
+
+  if ((sectors == null || sectors.length === 0) && !existingSectors.empty) {
+    return existingSectors.docs.map((doc) => ({ internal: doc.id, ...doc.data() }));
+  }
+
+  await Promise.all(
+    normalizedSectors.map((sector) => {
+      const payload = existingSectorIds.has(sector.internal) ?
+        { name: sector.name } :
+        {
+          name: sector.name,
+          created_at: '',
+        };
+
+      return sectorsCollection.doc(sector.internal).set(payload, { merge: true });
+    })
+  );
+
+  const updatedSectors = await sectorsCollection.get();
+  return updatedSectors.docs.map((doc) => ({ internal: doc.id, ...doc.data() }));
+}
+
 function validateGivingOptions(givingOptions) {
   if (!Array.isArray(givingOptions) || givingOptions.length === 0) {
     return 'givingOptions must be a non-empty array';
@@ -1348,7 +2444,383 @@ function validateGivingOptions(givingOptions) {
     null;
 }
 
-exports.createTenant = onRequest(
+function normalizeTenantTagUrl(value = '') {
+  return String(value).trim();
+}
+
+function sanitizeAuditField(value = '') {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_:-]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function isValidHttpUrl(value = '') {
+  try {
+    const parsed = new URL(String(value).trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch (error) {
+    return false;
+  }
+}
+
+async function fetchTagsByTenant(db, tenant) {
+  const fieldNames = ['tenant', 'slug', 'client_slug'];
+  const snapshots = await Promise.all(
+    fieldNames.map((fieldName) => db.collection('tags').where(fieldName, '==', tenant).get())
+  );
+
+  const tagsById = new Map();
+
+  snapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((doc) => {
+      if (!tagsById.has(doc.id)) {
+        tagsById.set(doc.id, doc);
+      }
+    });
+  });
+
+  return Array.from(tagsById.values());
+}
+
+async function fetchTagsByIds(db, ids) {
+  const uniqueIds = Array.from(new Set(
+    (Array.isArray(ids) ? ids : [])
+      .map((value) => String(value || '').trim())
+      .filter(Boolean)
+  ));
+
+  const docs = await Promise.all(
+    uniqueIds.map((id) => db.collection('tags').doc(id).get())
+  );
+
+  const foundDocs = docs.filter((doc) => doc.exists);
+  const foundIds = new Set(foundDocs.map((doc) => doc.id));
+  const missingIds = uniqueIds.filter((id) => !foundIds.has(id));
+
+  return {
+    foundDocs,
+    missingIds,
+    requestedIds: uniqueIds,
+  };
+}
+
+async function updateTenantTagsInChunks({ db, tagDocs, payloadFactory }) {
+  const chunkSize = 450;
+  let updatedCount = 0;
+
+  for (let index = 0; index < tagDocs.length; index += chunkSize) {
+    const chunk = tagDocs.slice(index, index + chunkSize);
+    const batch = db.batch();
+
+    chunk.forEach((tagDoc) => {
+      batch.set(tagDoc.ref, payloadFactory(tagDoc), { merge: true });
+    });
+
+    await batch.commit();
+    updatedCount += chunk.length;
+  }
+
+  return updatedCount;
+}
+
+function getTagUrlUpdateField(rawField) {
+  const targetField = sanitizeAuditField(rawField || 'redirect_url') || 'redirect_url';
+  const allowedFields = new Set(['redirect_url', 'redirect_override', 'target_url', 'url', 'redirecturl']);
+
+  if (!allowedFields.has(targetField)) {
+    return null;
+  }
+
+  return targetField === 'redirecturl' ? 'redirectUrl' : targetField;
+}
+
+exports.updateTenantTagUrl = onRequest(
+  {
+    cors: true,
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const db = admin.firestore();
+    const rawTenant = req.body?.tenant || req.body?.slug || req.query?.tenant || req.query?.slug;
+    const tenant = sanitizeTenantLookup(rawTenant);
+    const newUrl = normalizeTenantTagUrl(
+      req.body?.newUrl || req.body?.url || req.body?.redirectUrl || req.query?.newUrl || req.query?.url
+    );
+    const normalizedTargetField = getTagUrlUpdateField(req.body?.field || req.query?.field);
+
+    if (!tenant) {
+      return res.status(400).json({ error: 'tenant is required' });
+    }
+
+    if (!newUrl) {
+      return res.status(400).json({ error: 'newUrl is required' });
+    }
+
+    if (!isValidHttpUrl(newUrl)) {
+      return res.status(400).json({ error: 'newUrl must be a valid http or https URL' });
+    }
+
+    if (!normalizedTargetField) {
+      return res.status(400).json({ error: 'field must be one of: redirect_url, redirect_override, target_url, url, redirectUrl' });
+    }
+
+    const auditRef = db.collection('tag_url_audits').doc();
+    const requestMetadata = {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      origin: req.get('origin') || null,
+      referer: req.get('referer') || null,
+      method: req.method,
+      path: req.path,
+    };
+
+    try {
+      const tagDocs = await fetchTagsByTenant(db, tenant);
+
+      if (tagDocs.length === 0) {
+        await auditRef.set({
+          action: 'update_tenant_tag_url',
+          status: 'no_tags_found',
+          tenant,
+          newUrl,
+          targetField: normalizedTargetField,
+          matchedTags: 0,
+          updatedTags: 0,
+          sampleTagIds: [],
+          samplePreviousValues: [],
+          requestMetadata,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return res.status(404).json({
+          success: false,
+          error: 'No tags found for tenant',
+          tenant,
+          auditId: auditRef.id,
+        });
+      }
+
+      const samplePreviousValues = tagDocs.slice(0, 20).map((tagDoc) => ({
+        id: tagDoc.id,
+        previousValue: tagDoc.data()?.[normalizedTargetField] || null,
+      }));
+
+      const updatedCount = await updateTenantTagsInChunks({
+        db,
+        tagDocs,
+        payloadFactory: () => ({
+          [normalizedTargetField]: newUrl,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }),
+      });
+
+      await auditRef.set({
+        action: 'update_tenant_tag_url',
+        status: 'success',
+        tenant,
+        newUrl,
+        targetField: normalizedTargetField,
+        matchedTags: tagDocs.length,
+        updatedTags: updatedCount,
+        sampleTagIds: tagDocs.slice(0, 100).map((tagDoc) => tagDoc.id),
+        samplePreviousValues,
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      logger.info('Tenant tag URLs updated successfully', {
+        tenant,
+        targetField: normalizedTargetField,
+        updatedTags: updatedCount,
+        auditId: auditRef.id,
+      });
+
+      return res.status(200).json({
+        success: true,
+        tenant,
+        newUrl,
+        field: normalizedTargetField,
+        matchedTags: tagDocs.length,
+        updatedTags: updatedCount,
+        auditId: auditRef.id,
+      });
+    } catch (error) {
+      logger.error('Error updating tenant tag URLs:', error);
+
+      await auditRef.set({
+        action: 'update_tenant_tag_url',
+        status: 'error',
+        tenant,
+        newUrl,
+        targetField: normalizedTargetField,
+        error: error.message || 'Unknown error',
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Internal Server Error',
+        auditId: auditRef.id,
+      });
+    }
+  }
+);
+
+exports.updateTagUrlByIds = onRequest(
+  {
+    cors: true,
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const db = admin.firestore();
+    const ids = req.body?.ids;
+    const newUrl = normalizeTenantTagUrl(
+      req.body?.newUrl || req.body?.url || req.body?.redirectUrl || req.query?.newUrl || req.query?.url
+    );
+    const normalizedTargetField = getTagUrlUpdateField(req.body?.field || req.query?.field);
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids must be a non-empty array' });
+    }
+
+    if (!newUrl) {
+      return res.status(400).json({ error: 'newUrl is required' });
+    }
+
+    if (!isValidHttpUrl(newUrl)) {
+      return res.status(400).json({ error: 'newUrl must be a valid http or https URL' });
+    }
+
+    if (!normalizedTargetField) {
+      return res.status(400).json({ error: 'field must be one of: redirect_url, redirect_override, target_url, url, redirectUrl' });
+    }
+
+    const auditRef = db.collection('tag_url_audits').doc();
+    const requestMetadata = {
+      ipAddress: req.ip || null,
+      userAgent: req.get('user-agent') || null,
+      origin: req.get('origin') || null,
+      referer: req.get('referer') || null,
+      method: req.method,
+      path: req.path,
+    };
+
+    try {
+      const { foundDocs, missingIds, requestedIds } = await fetchTagsByIds(db, ids);
+
+      if (foundDocs.length === 0) {
+        await auditRef.set({
+          action: 'update_tag_url_by_ids',
+          status: 'no_tags_found',
+          requestedIds,
+          missingIds,
+          newUrl,
+          targetField: normalizedTargetField,
+          matchedTags: 0,
+          updatedTags: 0,
+          sampleTagIds: [],
+          samplePreviousValues: [],
+          requestMetadata,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return res.status(404).json({
+          success: false,
+          error: 'No tags found for provided ids',
+          missingIds,
+          auditId: auditRef.id,
+        });
+      }
+
+      const samplePreviousValues = foundDocs.slice(0, 20).map((tagDoc) => ({
+        id: tagDoc.id,
+        previousValue: tagDoc.data()?.[normalizedTargetField] || null,
+      }));
+
+      const updatedCount = await updateTenantTagsInChunks({
+        db,
+        tagDocs: foundDocs,
+        payloadFactory: () => ({
+          [normalizedTargetField]: newUrl,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }),
+      });
+
+      await auditRef.set({
+        action: 'update_tag_url_by_ids',
+        status: 'success',
+        requestedIds,
+        missingIds,
+        newUrl,
+        targetField: normalizedTargetField,
+        matchedTags: foundDocs.length,
+        updatedTags: updatedCount,
+        sampleTagIds: foundDocs.slice(0, 100).map((tagDoc) => tagDoc.id),
+        samplePreviousValues,
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return res.status(200).json({
+        success: true,
+        ids: requestedIds,
+        missingIds,
+        newUrl,
+        field: normalizedTargetField,
+        matchedTags: foundDocs.length,
+        updatedTags: updatedCount,
+        auditId: auditRef.id,
+      });
+    } catch (error) {
+      logger.error('Error updating tag URLs by ids:', error);
+
+      await auditRef.set({
+        action: 'update_tag_url_by_ids',
+        status: 'error',
+        requestedIds: Array.isArray(ids) ? ids : [],
+        newUrl,
+        targetField: normalizedTargetField,
+        error: error.message || 'Unknown error',
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Internal Server Error',
+        auditId: auditRef.id,
+      });
+    }
+  }
+);
+
+exports.upsertTenant = onRequest(
   {
     cors: true,
     maxInstances: 2,
@@ -1369,10 +2841,12 @@ exports.createTenant = onRequest(
         slug,
         name,
         domain,
+        sectors,
         currency,
         stripeAccountId,
         stripePublicKey,
         pixKey,
+        fallbackUrl,
         logoUrl,
         givingOptions,
         paymentMethods,
@@ -1393,6 +2867,15 @@ exports.createTenant = onRequest(
         return res.status(400).json({ error: 'currency is required' });
       }
 
+      const sectorsError = validateSectors(sectors);
+      if (sectorsError) {
+        return res.status(400).json({ error: sectorsError });
+      }
+
+      if (!fallbackUrl || typeof fallbackUrl !== 'string' || !fallbackUrl.trim()) {
+        return res.status(400).json({ error: 'fallbackUrl is required' });
+      }
+
       const givingOptionsError = validateGivingOptions(givingOptions);
       if (givingOptionsError) {
         return res.status(400).json({ error: givingOptionsError });
@@ -1405,9 +2888,10 @@ exports.createTenant = onRequest(
       const db = admin.firestore();
       const tenantRef = db.collection('tenants').doc(normalizedSlug);
       const existingTenant = await tenantRef.get();
+      const alreadyExists = existingTenant.exists;
 
       if (existingTenant.exists) {
-        return res.status(409).json({ error: 'Tenant already exists', slug: normalizedSlug });
+        logger.info(`Tenant already exists. Updating tenant: ${normalizedSlug}`);
       }
 
       const normalizedTenant = {
@@ -1419,6 +2903,7 @@ exports.createTenant = onRequest(
         stripeAccountId: typeof stripeAccountId === 'string' && stripeAccountId.trim() ? stripeAccountId.trim() : null,
         stripePublicKey: typeof stripePublicKey === 'string' && stripePublicKey.trim() ? stripePublicKey.trim() : null,
         pixKey: typeof pixKey === 'string' && pixKey.trim() ? pixKey.trim() : null,
+        fallbackUrl: fallbackUrl.trim(),
         logoUrl: typeof logoUrl === 'string' && logoUrl.trim() ? logoUrl.trim() : null,
         givingOptions: givingOptions.map((option) => ({
           id: option.id.trim(),
@@ -1436,21 +2921,65 @@ exports.createTenant = onRequest(
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
 
-      await tenantRef.set(normalizedTenant);
+      await tenantRef.set(normalizedTenant, { merge: true });
+      const normalizedSectorRecords = await ensureTenantSectors({ tenantRef, sectors });
 
-      logger.info(`Tenant created successfully: ${normalizedSlug}`);
+      logger.info(`Tenant upsert completed successfully: ${normalizedSlug}`);
 
-      return res.status(201).json({
+      return res.status(alreadyExists ? 200 : 201).json({
         success: true,
+        operation: alreadyExists ? 'updated' : 'created',
         tenant: {
           ...normalizedTenant,
           createdAt: null,
           updatedAt: null,
         },
+        sectors: normalizedSectorRecords,
       });
     } catch (error) {
-      logger.error('Error in createTenant:', error);
+      logger.error('Error in upsertTenant:', error);
       return res.status(500).json({ error: 'Internal Server Error' });
     }
+  }
+);
+
+exports.createTenant = exports.upsertTenant;
+exports.getTagKpis = onRequest(
+  {
+    cors: true,
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.set('Allow', 'GET, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    return getTagKpis(req, res);
+  }
+);
+
+exports.listTags = onRequest(
+  {
+    cors: true,
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.set('Allow', 'GET, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    return listTags(req, res);
   }
 );
