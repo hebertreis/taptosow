@@ -13,6 +13,20 @@ constexpr uint8_t kType2PageSize = 4;
 constexpr uint8_t kType2CcPage = 3;
 constexpr uint8_t kType2DataStartPage = 4;
 constexpr size_t kType2ReadBufferSize = 18;
+constexpr uint8_t kType2WriteAttempts = 3;
+constexpr uint8_t kType2WriteRetryDelayMs = 8;
+constexpr uint8_t kTagSelectStabilizeDelayMs = 20;
+constexpr uint8_t kClassicSectorCount1K = 16;
+constexpr uint8_t kClassicFirstDataBlock = 4;
+constexpr uint8_t kClassicBlocksPerSector = 4;
+
+struct ClassicAuthCandidate {
+    byte command;
+    byte key[MFRC522::MF_KEY_SIZE];
+    const char* label;
+};
+
+String bytesToHexString(const uint8_t* data, size_t length);
 
 bool isValidRc522Firmware(byte version) {
     return version == 0x91 || version == 0x92;
@@ -64,10 +78,203 @@ String statusCodeName(MFRC522::StatusCode status) {
     return String(MFRC522::GetStatusCodeName(status));
 }
 
+bool hasSelectedTag() {
+    return g_mfrc522.uid.size > 0;
+}
+
+String formatAtqa(const byte* atqa, byte size) {
+    if (atqa == nullptr || size == 0) {
+        return "";
+    }
+    return bytesToHexString(atqa, size);
+}
+
+bool reselectCurrentTag(const char* phase) {
+    g_mfrc522.PICC_HaltA();
+    g_mfrc522.PCD_StopCrypto1();
+    delay(kTagSelectStabilizeDelayMs);
+
+    byte atqa[2] = {0};
+    byte atqaSize = sizeof(atqa);
+    MFRC522::StatusCode status = g_mfrc522.PICC_WakeupA(atqa, &atqaSize);
+    if (status != MFRC522::STATUS_OK && status != MFRC522::STATUS_COLLISION) {
+        status = g_mfrc522.PICC_RequestA(atqa, &atqaSize);
+    }
+    if (status != MFRC522::STATUS_OK && status != MFRC522::STATUS_COLLISION) {
+        Serial.print(F("[NFC] Reselect failed phase="));
+        Serial.print(phase);
+        Serial.print(F(" request="));
+        Serial.println(statusCodeName(status));
+        return false;
+    }
+
+    status = g_mfrc522.PICC_Select(&(g_mfrc522.uid));
+    if (status != MFRC522::STATUS_OK) {
+        Serial.print(F("[NFC] Reselect failed phase="));
+        Serial.print(phase);
+        Serial.print(F(" select="));
+        Serial.println(statusCodeName(status));
+        return false;
+    }
+
+    delay(kTagSelectStabilizeDelayMs);
+    return true;
+}
+
 void setErrorMessage(String* error, const String& message) {
     if (error != nullptr) {
         *error = message;
     }
+}
+
+bool writeType2PageWithRetry(uint8_t page,
+                             const uint8_t* data,
+                             String* error,
+                             const String& label) {
+    MFRC522::StatusCode lastStatus = MFRC522::STATUS_ERROR;
+
+    for (uint8_t attempt = 0; attempt < kType2WriteAttempts; ++attempt) {
+        if (attempt > 0 && !reselectCurrentTag("type2_retry")) {
+            lastStatus = MFRC522::STATUS_TIMEOUT;
+            continue;
+        }
+
+        byte writeBuffer[kType2PageSize] = {0};
+        memcpy(writeBuffer, data, kType2PageSize);
+        byte compatBuffer[16] = {0};
+        memcpy(compatBuffer, data, kType2PageSize);
+
+        lastStatus = g_mfrc522.MIFARE_Ultralight_Write(page, writeBuffer, sizeof(writeBuffer));
+        if (lastStatus != MFRC522::STATUS_OK) {
+            lastStatus = g_mfrc522.MIFARE_Write(page, compatBuffer, sizeof(compatBuffer));
+        }
+
+        if (lastStatus == MFRC522::STATUS_OK) {
+            byte verifyBuffer[kType2ReadBufferSize] = {0};
+            byte verifySize = sizeof(verifyBuffer);
+            lastStatus = g_mfrc522.MIFARE_Read(page, verifyBuffer, &verifySize);
+            if (lastStatus == MFRC522::STATUS_OK &&
+                verifySize >= kType2PageSize &&
+                memcmp(verifyBuffer, writeBuffer, kType2PageSize) == 0) {
+                return true;
+            }
+        }
+
+        delay(kType2WriteRetryDelayMs);
+        yield();
+    }
+
+    setErrorMessage(error, label + " " + String(page) + ": " + statusCodeName(lastStatus));
+    return false;
+}
+
+const ClassicAuthCandidate* classicAuthCandidates(size_t& count) {
+    static const ClassicAuthCandidate kCandidates[] = {
+        {MFRC522::PICC_CMD_MF_AUTH_KEY_A, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, "default_a"},
+        {MFRC522::PICC_CMD_MF_AUTH_KEY_B, {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}, "default_b"},
+        {MFRC522::PICC_CMD_MF_AUTH_KEY_A, {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7}, "ndef_a"},
+        {MFRC522::PICC_CMD_MF_AUTH_KEY_B, {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7}, "ndef_b"},
+        {MFRC522::PICC_CMD_MF_AUTH_KEY_A, {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5}, "mad_a"},
+        {MFRC522::PICC_CMD_MF_AUTH_KEY_B, {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5}, "mad_b"},
+        {MFRC522::PICC_CMD_MF_AUTH_KEY_A, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, "zero_a"},
+        {MFRC522::PICC_CMD_MF_AUTH_KEY_B, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, "zero_b"},
+    };
+    count = sizeof(kCandidates) / sizeof(kCandidates[0]);
+    return kCandidates;
+}
+
+bool authenticateClassicBlock(byte blockAddr,
+                              MFRC522::MIFARE_Key* matchedKey,
+                              byte* matchedCommand,
+                              String* trace) {
+    size_t candidateCount = 0;
+    const ClassicAuthCandidate* candidates = classicAuthCandidates(candidateCount);
+    String attempts;
+
+    for (size_t i = 0; i < candidateCount; ++i) {
+        MFRC522::MIFARE_Key key;
+        memcpy(key.keyByte, candidates[i].key, MFRC522::MF_KEY_SIZE);
+
+        g_mfrc522.PCD_StopCrypto1();
+        const MFRC522::StatusCode status = g_mfrc522.PCD_Authenticate(
+            candidates[i].command,
+            blockAddr,
+            &key,
+            &(g_mfrc522.uid)
+        );
+
+        if (status == MFRC522::STATUS_OK) {
+            if (matchedKey != nullptr) {
+                *matchedKey = key;
+            }
+            if (matchedCommand != nullptr) {
+                *matchedCommand = candidates[i].command;
+            }
+            if (trace != nullptr) {
+                *trace = String(candidates[i].label);
+            }
+            Serial.print(F("[NFC] Classic auth block="));
+            Serial.print(blockAddr);
+            Serial.print(F(" key="));
+            Serial.println(candidates[i].label);
+            return true;
+        }
+
+        if (attempts.length() > 0) {
+            attempts += ",";
+        }
+        attempts += candidates[i].label;
+        attempts += "=";
+        attempts += statusCodeName(status);
+    }
+
+    if (trace != nullptr) {
+        *trace = attempts;
+    }
+    return false;
+}
+
+bool writeClassicFormatLayout(String* error) {
+    byte emptyNdefMesg[16] = {0x03, 0x03, 0xD0, 0x00, 0x00, 0xFE, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    byte blockbuffer0[16] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    byte blockbuffer1[16] = {0x14, 0x01, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1};
+    byte blockbuffer2[16] = {0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1, 0x03, 0xE1};
+    byte blockbuffer3[16] = {0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5, 0x78, 0x77, 0x88, 0xC1, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    byte blockbuffer4[16] = {0xD3, 0xF7, 0xD3, 0xF7, 0xD3, 0xF7, 0x7F, 0x07, 0x88, 0x40, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+    for (byte sector = 0; sector < kClassicSectorCount1K; ++sector) {
+        const byte block = sector * kClassicBlocksPerSector;
+        MFRC522::MIFARE_Key matchedKey;
+        byte matchedCommand = MFRC522::PICC_CMD_MF_AUTH_KEY_A;
+        String authTrace;
+        if (!authenticateClassicBlock(block == 0 ? 1 : block, &matchedKey, &matchedCommand, &authTrace)) {
+            setErrorMessage(error, "Classic format auth failed on sector " + String(sector) + ": " + authTrace);
+            return false;
+        }
+
+        if (sector == 0) {
+            if (g_mfrc522.MIFARE_Write(1, blockbuffer1, 16) != MFRC522::STATUS_OK ||
+                g_mfrc522.MIFARE_Write(2, blockbuffer2, 16) != MFRC522::STATUS_OK ||
+                g_mfrc522.MIFARE_Write(3, blockbuffer3, 16) != MFRC522::STATUS_OK) {
+                setErrorMessage(error, "Classic format write failed on MAD sector");
+                return false;
+            }
+            continue;
+        }
+
+        const byte trailerBlock = block + 3;
+        byte* firstBlockData = (block == kClassicFirstDataBlock) ? emptyNdefMesg : blockbuffer0;
+        if (g_mfrc522.MIFARE_Write(block, firstBlockData, 16) != MFRC522::STATUS_OK ||
+            g_mfrc522.MIFARE_Write(block + 1, blockbuffer0, 16) != MFRC522::STATUS_OK ||
+            g_mfrc522.MIFARE_Write(block + 2, blockbuffer0, 16) != MFRC522::STATUS_OK ||
+            g_mfrc522.MIFARE_Write(trailerBlock, blockbuffer4, 16) != MFRC522::STATUS_OK) {
+            setErrorMessage(error, "Classic format write failed on sector " + String(sector));
+            return false;
+        }
+    }
+
+    g_mfrc522.PCD_StopCrypto1();
+    return true;
 }
 
 String bytesToHexString(const uint8_t* data, size_t length) {
@@ -230,6 +437,14 @@ bool NfcManager::tagPresent() {
     return status == MFRC522::STATUS_OK;
 }
 
+bool NfcManager::selectTag() {
+    if (!_initialized) {
+        return false;
+    }
+
+    return _selectTag();
+}
+
 bool NfcManager::readTag(NfcCardInfo& card, String* error) {
     card.clear();
     setErrorMessage(error, "");
@@ -321,22 +536,54 @@ bool NfcManager::writeTag(const String& url,
 
 void NfcManager::haltTag() {
     g_nfc.haltTag();
+    g_mfrc522.uid.size = 0;
     delay(NFC_TAG_DETECT_DELAY_MS);
 }
 
 bool NfcManager::_selectTag() {
-    if (!nfcRequestLock()) {
+    const bool lockWasHeld = nfcHasLock();
+    if (!lockWasHeld && !nfcRequestLock()) {
         Serial.println(F("[NFC] Lock request failed"));
         return false;
     }
 
-    if (!g_nfc.tagPresent()) {
-        Serial.println(F("[NFC] g_nfc.tagPresent() == false"));
+    if (lockWasHeld && hasSelectedTag()) {
+        return true;
+    }
+
+    g_mfrc522.PCD_StopCrypto1();
+    byte atqa[2] = {0};
+    byte atqaSize = sizeof(atqa);
+    MFRC522::StatusCode requestStatus = g_mfrc522.PICC_RequestA(atqa, &atqaSize);
+    if (requestStatus != MFRC522::STATUS_OK && requestStatus != MFRC522::STATUS_COLLISION) {
+        atqaSize = sizeof(atqa);
+        requestStatus = g_mfrc522.PICC_WakeupA(atqa, &atqaSize);
+    }
+    if (requestStatus != MFRC522::STATUS_OK && requestStatus != MFRC522::STATUS_COLLISION) {
+        Serial.print(F("[NFC] Select request failed status="));
+        Serial.println(statusCodeName(requestStatus));
         nfcReleaseLock();
+        g_mfrc522.uid.size = 0;
         return false;
     }
 
+    const MFRC522::StatusCode selectStatus = g_mfrc522.PICC_Select(&(g_mfrc522.uid));
+    if (selectStatus != MFRC522::STATUS_OK) {
+        Serial.print(F("[NFC] PICC_Select failed status="));
+        Serial.println(statusCodeName(selectStatus));
+        nfcReleaseLock();
+        g_mfrc522.uid.size = 0;
+        return false;
+    }
+
+    delay(kTagSelectStabilizeDelayMs);
     Serial.println(F("[NFC] Tag selected"));
+    Serial.print(F("[NFC] ATQA="));
+    Serial.print(formatAtqa(atqa, atqaSize));
+    Serial.print(F(" SAK=0x"));
+    Serial.print(g_mfrc522.uid.sak, HEX);
+    Serial.print(F(" type="));
+    Serial.println(MFRC522::PICC_GetTypeName(g_mfrc522.PICC_GetType(g_mfrc522.uid.sak)));
 
     return true;
 }
@@ -420,16 +667,32 @@ bool NfcManager::_readSelectedTag(NfcCardInfo& card, bool haltAfter) {
 
 bool NfcManager::_writeClassicTag(const String& url,
                                   String* error) {
-    if (!g_nfc.format()) {
-        setErrorMessage(error, "Failed to format MIFARE Classic tag for NDEF");
-        return false;
-    }
-
     NdefMessage message;
     message.addUriRecord(url.c_str());
 
+    // Already-formatted Classic tags use NFC Forum keys, so re-formatting every
+    // time breaks rewrites on cards that were previously prepared as NDEF.
+    if (g_nfc.write(message)) {
+        return true;
+    }
+
+    Serial.println(F("[NFC] Classic direct write failed, attempting format"));
+    reselectCurrentTag("classic_after_direct_write");
+
+    if (!g_nfc.format()) {
+        Serial.println(F("[NFC] Library format failed, attempting extended Classic format"));
+        reselectCurrentTag("classic_before_extended_format");
+        String customFormatError;
+        if (!writeClassicFormatLayout(&customFormatError)) {
+            setErrorMessage(error, "Failed to write NDEF URI to MIFARE Classic tag and failed to format card for NDEF: " + customFormatError);
+            return false;
+        }
+    }
+
+    reselectCurrentTag("classic_before_final_write");
+
     if (!g_nfc.write(message)) {
-        setErrorMessage(error, "Failed to write NDEF URI to MIFARE Classic tag");
+        setErrorMessage(error, "Failed to write NDEF URI to MIFARE Classic tag after formatting");
         return false;
     }
 
@@ -440,6 +703,8 @@ bool NfcManager::_writeType2Tag(const String& url,
                                 NfcCardInfo& card,
                                 bool lockCard,
                                 String* error) {
+    g_mfrc522.PCD_StopCrypto1();
+
     byte ccReadBuffer[kType2ReadBufferSize] = {0};
     byte ccReadSize = sizeof(ccReadBuffer);
     const MFRC522::StatusCode ccStatus = g_mfrc522.MIFARE_Read(kType2CcPage, ccReadBuffer, &ccReadSize);
@@ -448,6 +713,11 @@ bool NfcManager::_writeType2Tag(const String& url,
         setErrorMessage(error, "Failed to read Type 2 capability container: " + statusCodeName(ccStatus));
         return false;
     }
+
+    Serial.print(F("[NFC] Type2 CC="));
+    Serial.print(bytesToHexString(ccReadBuffer, 4));
+    Serial.print(F(" uid="));
+    Serial.println(card.uid);
 
     const uint8_t capacityField = ccReadBuffer[2];
     const uint16_t tagCapacity = static_cast<uint16_t>(capacityField) * 8U;
@@ -464,7 +734,7 @@ bool NfcManager::_writeType2Tag(const String& url,
         return false;
     }
 
-    byte ccPage[16] = {0};
+    byte ccPage[kType2PageSize] = {0};
     ccPage[0] = 0xE1;
     ccPage[1] = 0x10;
     ccPage[2] = capacityField;
@@ -474,9 +744,7 @@ bool NfcManager::_writeType2Tag(const String& url,
         ccReadBuffer[1] != ccPage[1] ||
         ccReadBuffer[2] != ccPage[2] ||
         ccReadBuffer[3] != ccPage[3]) {
-        const MFRC522::StatusCode writeCcStatus = g_mfrc522.MIFARE_Write(kType2CcPage, ccPage, 16);
-        if (writeCcStatus != MFRC522::STATUS_OK) {
-            setErrorMessage(error, "Failed to write Type 2 capability container: " + statusCodeName(writeCcStatus));
+        if (!writeType2PageWithRetry(kType2CcPage, ccPage, error, "Failed to write Type 2 capability container page")) {
             return false;
         }
     }
@@ -497,7 +765,7 @@ bool NfcManager::_writeType2Tag(const String& url,
 
     encoded[offset++] = 0xFE;
 
-    uint8_t pageBuffer[16] = {0};
+    uint8_t pageBuffer[kType2PageSize] = {0};
     uint8_t page = kType2DataStartPage;
     size_t cursor = 0;
 
@@ -508,13 +776,12 @@ bool NfcManager::_writeType2Tag(const String& url,
             pageBuffer[i] = encoded[cursor];
         }
 
-        const MFRC522::StatusCode writeStatus = g_mfrc522.MIFARE_Write(page, pageBuffer, 16);
-        if (writeStatus != MFRC522::STATUS_OK) {
-            setErrorMessage(error, "Failed to write Type 2 page " + String(page) + ": " + statusCodeName(writeStatus));
+        if (!writeType2PageWithRetry(page, pageBuffer, error, "Failed to write Type 2 page")) {
             return false;
         }
 
         ++page;
+        delay(kType2WriteRetryDelayMs);
         yield();
     }
 
@@ -531,9 +798,7 @@ bool NfcManager::_writeType2Tag(const String& url,
 
         lockPageBuffer[2] = 0xFF;
         lockPageBuffer[3] = 0xFF;
-        lockStatus = g_mfrc522.MIFARE_Write(2, lockPageBuffer, 16);
-        if (lockStatus != MFRC522::STATUS_OK) {
-            setErrorMessage(error, "Failed to write Type 2 static lock bytes: " + statusCodeName(lockStatus));
+        if (!writeType2PageWithRetry(2, lockPageBuffer, error, "Failed to write Type 2 static lock page")) {
             return false;
         }
 
@@ -548,9 +813,7 @@ bool NfcManager::_writeType2Tag(const String& url,
         lockPageBuffer[0] = 0xFF;
         lockPageBuffer[1] = 0xFF;
         lockPageBuffer[2] = 0xFF;
-        lockStatus = g_mfrc522.MIFARE_Write(dynamicLockPage, lockPageBuffer, 16);
-        if (lockStatus != MFRC522::STATUS_OK) {
-            setErrorMessage(error, "Failed to write Type 2 dynamic lock bytes: " + statusCodeName(lockStatus));
+        if (!writeType2PageWithRetry(dynamicLockPage, lockPageBuffer, error, "Failed to write Type 2 dynamic lock page")) {
             return false;
         }
 

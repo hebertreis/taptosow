@@ -20,7 +20,7 @@
  * - managers/wifi_manager.*: WiFi connectivity
  * - config headers         : Configuration headers
  * 
- * @version 5.0.0
+ * @version 5.1.0
  * @author OneTapGo by CRE8 Tecnologia
  */
 

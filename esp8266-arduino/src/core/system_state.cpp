@@ -34,12 +34,15 @@ void stateInit() {
     g_system.isMqttConnected = false;
     g_system.isNfcConnected = false;
     g_system.portalActive = false;
+    g_system.accessPointActive = false;
+    g_system.wifiReconfigPending = false;
     g_system.state = STATE_BOOT;
     g_system.debugMode = false;
     g_system.legacyReadMode = false;
     g_system.wifiSsid = "";
     g_system.wifiIp = "";
     g_system.wifiRssi = 0;
+    g_system.lastWifiError = "";
     g_system.lastHeartbeat = 0;
     g_system.lastNfcPoll = 0;
     g_system.lastActivity = millis();
@@ -243,10 +246,15 @@ void fillStatusDoc(JsonDocument& doc) {
     doc["ip"] = g_system.wifiIp;
     doc["rssi"] = g_system.wifiRssi;
     doc["portalActive"] = g_system.portalActive;
+    doc["apActive"] = g_system.accessPointActive;
     doc["portalSsid"] = g_system.portalApSsid;
+    doc["wifiReconfigPending"] = g_system.wifiReconfigPending;
     doc["mqttConnected"] = g_system.isMqttConnected;
     doc["nfcReady"] = g_system.isNfcConnected;
     doc["firmwareHex"] = firmwareHex;
+    if (g_system.lastWifiError.length() > 0) {
+        doc["lastWifiError"] = g_system.lastWifiError;
+    }
 
     if (g_system.nfcJob.active) {
         doc["job"] = nfcCommandName(g_system.nfcJob.command);

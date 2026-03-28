@@ -13,6 +13,8 @@
 #define WIFI_AP_PASSWORD              "onetapgo123"
 #define WIFI_CONFIG_PORTAL_TIMEOUT_SEC 180
 #define WIFI_CONNECT_TIMEOUT_SEC      60
+#define WIFI_COMMAND_CONNECT_TIMEOUT_SEC 30
+#define WIFI_SCAN_RESULT_LIMIT        6
 
 // ============================================================================
 // WiFi Runtime

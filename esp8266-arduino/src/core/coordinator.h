@@ -10,9 +10,11 @@
 #define COORDINATOR_H
 
 #include "core/system_state.h"
+#include "managers/button_manager.h"
 #include "managers/nfc_manager.h"
 #include "managers/lcd_manager.h"
 #include "managers/mqtt_manager.h"
+#include "managers/status_led_manager.h"
 #include "managers/wifi_manager.h"
 
 // ============================================================================
@@ -43,6 +45,8 @@ private:
     void _completeNfcError(const String& error);
     void _handleNfcTimeout();
     void _finishJob(DeviceState finalState);
+    void _handleButtonEvent(ButtonEventType eventType);
+    bool _workflowBusy() const;
     bool _jobTimedOut(unsigned long now) const;
 
     unsigned long _observedJobStartedAt = 0;

@@ -6,6 +6,8 @@
 #include "core/coordinator.h"
 
 namespace {
+constexpr unsigned long kButtonReadTimeoutMs = NFC_DEFAULT_COMMAND_TIMEOUT_SEC * 1000UL;
+
 String defaultErrorCodeFor(NfcCommandType command) {
     switch (command) {
         case NFC_CMD_WRITE:
@@ -70,6 +72,20 @@ void logStateSnapshot(const char* prefix) {
     Serial.print(F(" heap="));
     Serial.println(ESP.getFreeHeap());
 }
+
+bool workflowBusyForUi() {
+    if (nfcJobActive()) {
+        return true;
+    }
+
+    if ((g_system.state == STATE_SUCCESS || g_system.state == STATE_ERROR) &&
+        g_system.stateHoldUntil != 0 &&
+        ((long)(millis() - g_system.stateHoldUntil) < 0)) {
+        return true;
+    }
+
+    return false;
+}
 }
 
 void Coordinator::begin() {
@@ -91,6 +107,9 @@ void Coordinator::begin() {
     } else {
         Serial.println(F("[SYS] LCD disabled"));
     }
+
+    g_statusLed.begin();
+    g_buttonManager.begin();
 
     Serial.println(F("[SYS] Initializing WiFi..."));
     g_wifiManager.begin();
@@ -124,7 +143,10 @@ void Coordinator::loop() {
     static bool lastJobActive = false;
     static unsigned long lastHeartbeatLog = 0;
 
-    
+    const ButtonEventType buttonEvent = g_buttonManager.loop();
+    if (buttonEvent != BUTTON_EVENT_NONE) {
+        _handleButtonEvent(buttonEvent);
+    }
 
     if (nfcJobActive()) {
         _handleNfcJob();
@@ -137,6 +159,9 @@ void Coordinator::loop() {
             _syncIdleState();
         }
     }
+
+    g_statusLed.setHold(nfcJobActive());
+    g_statusLed.loop();
 
     g_lcd.showState();
 
@@ -161,6 +186,62 @@ void Coordinator::loop() {
     }
 
     yield();
+}
+
+bool Coordinator::_workflowBusy() const {
+    return workflowBusyForUi();
+}
+
+void Coordinator::_handleButtonEvent(ButtonEventType eventType) {
+    if (eventType == BUTTON_EVENT_NONE) {
+        return;
+    }
+
+    if (_workflowBusy() && eventType != BUTTON_EVENT_LONG_PRESS) {
+        if (lcdCanUpdate()) {
+            g_lcd.showMessage("Ocupado", "Aguarde o job atual", LCD_MESSAGE_DURATION_MS);
+        }
+        return;
+    }
+
+    switch (eventType) {
+        case BUTTON_EVENT_SINGLE:
+            if (!nfcJobActive()) {
+                startNfcJob(
+                    NFC_CMD_READ,
+                    String("button-") + String(millis()),
+                    "",
+                    kButtonReadTimeoutMs,
+                    false
+                );
+                g_mqttManager.publishStatus(true);
+                g_lcd.forceUpdate();
+            }
+            break;
+        case BUTTON_EVENT_DOUBLE:
+            g_lcd.showAdminOverlay();
+            break;
+        case BUTTON_EVENT_TRIPLE:
+            g_lcd.showTechnicalOverlay();
+            break;
+        case BUTTON_EVENT_LONG_PRESS: {
+            if (_workflowBusy()) {
+                if (lcdCanUpdate()) {
+                    g_lcd.showMessage("Ocupado", "NFC em andamento", LCD_MESSAGE_DURATION_MS);
+                }
+                return;
+            }
+            String errorMessage;
+            g_lcd.showMessage("WiFi", "Abrindo portal...", LCD_MESSAGE_DURATION_MS);
+            g_wifiManager.openConfigPortal(WIFI_CONFIG_PORTAL_TIMEOUT_SEC, errorMessage);
+            g_mqttManager.publishStatus(true);
+            g_lcd.forceUpdate();
+            break;
+        }
+        case BUTTON_EVENT_NONE:
+        default:
+            break;
+    }
 }
 
 void Coordinator::_syncIdleState() {
@@ -213,7 +294,7 @@ void Coordinator::_handleLegacyReadMode() {
     }
     g_system.lastNfcPoll = now;
 
-    if (!g_nfcManager.tagPresent()) {
+    if (!g_nfcManager.selectTag()) {
         return;
     }
 
@@ -289,7 +370,7 @@ void Coordinator::_handleNfcJob() {
     }
     g_system.lastNfcPoll = now;
 
-    if (!g_nfcManager.tagPresent()) {
+    if (!g_nfcManager.selectTag()) {
         return;
     }
 

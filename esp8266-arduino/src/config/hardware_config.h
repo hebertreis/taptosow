@@ -48,6 +48,22 @@
 // Button (optional manual trigger)
 // ============================================================================
 #define BUTTON_PIN     0   // D3 (GPIO 0) - Optional button
+#define BUTTON_MULTI_CLICK_WINDOW_MS 700UL
+#define BUTTON_LONG_PRESS_MS        5000UL
+#define LCD_OVERLAY_DURATION_MS     6000UL
+#define LCD_MESSAGE_DURATION_MS     1800UL
+
+// ============================================================================
+// Built-in status LED
+// ============================================================================
+#ifndef LED_BUILTIN
+#define LED_BUILTIN    2   // ESP8266 onboard LED (active low)
+#endif
+
+#define STATUS_LED_PIN         LED_BUILTIN
+#define STATUS_LED_ACTIVE      LOW
+#define STATUS_LED_INACTIVE    HIGH
+#define STATUS_LED_BLINK_MS    80UL
 
 // ============================================================================
 // Timing Configuration

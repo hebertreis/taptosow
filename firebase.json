@@ -46,6 +46,14 @@
         "function": "getTenantBySlug"
       },
       {
+        "source": "/createTenant",
+        "function": "createTenant"
+      },
+      {
+        "source": "/api/tenants",
+        "function": "createTenant"
+      },
+      {
         "source": "/a/**",
         "function": "iotRouter"
       },
@@ -68,6 +76,10 @@
       {
         "source": "/go/**",
         "function": "iotRouter"
+      },
+      {
+        "source": "/api/webhook-pix/**",
+        "function": "proxyPixWebhook"
       },
       {
         "source": "**",

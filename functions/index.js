@@ -1,6 +1,7 @@
 const { onRequest } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
+const tls = require('tls');
 
 // CORS configuration for web requests
 const cors = require('cors')({ origin: true });
@@ -26,6 +27,426 @@ const pagbankToken = defineSecret("PAGBANK_TOKEN");
 
 const CoraClient = require('./src/cora');
 const { seedTenants } = require('./src/seedTenants');
+
+const PIX_WEBHOOK_PROXY_PREFIX = '/api/webhook-pix/';
+const PIX_WEBHOOK_PROXY_TARGET_ORIGIN = 'https://giving.onetapgo.site';
+const PIX_WEBHOOK_PROXY_TIMEOUT_MS = 15000;
+const PIX_WEBHOOK_REDIS_CHANNEL = 'webhook-pix-events';
+
+const HOP_BY_HOP_HEADERS = new Set([
+  'connection',
+  'keep-alive',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailer',
+  'transfer-encoding',
+  'upgrade'
+]);
+
+const REQUEST_HEADER_BLACKLIST = new Set([
+  ...HOP_BY_HOP_HEADERS,
+  'content-length',
+  'host'
+]);
+
+const RESPONSE_HEADER_BLACKLIST = new Set([
+  ...HOP_BY_HOP_HEADERS,
+  'content-length'
+]);
+
+let hasLoggedMissingPixWebhookRedisUrl = false;
+
+function extractPixWebhookCnpj(pathname = '') {
+  const normalizedPath = pathname.endsWith('/') && pathname.length > PIX_WEBHOOK_PROXY_PREFIX.length ?
+    pathname.slice(0, -1) :
+    pathname;
+
+  if (!normalizedPath.startsWith(PIX_WEBHOOK_PROXY_PREFIX)) {
+    return null;
+  }
+
+  const cnpj = normalizedPath.slice(PIX_WEBHOOK_PROXY_PREFIX.length);
+  return /^\d{14}$/.test(cnpj) ? cnpj : null;
+}
+
+function buildPixWebhookTargetUrl(req) {
+  const originalUrl = req.originalUrl || req.url || req.path || '/';
+  return new URL(originalUrl, PIX_WEBHOOK_PROXY_TARGET_ORIGIN).toString();
+}
+
+function buildProxyRequestHeaders(headers = {}) {
+  const proxyHeaders = new Headers();
+
+  for (const [name, value] of Object.entries(headers)) {
+    if (value == null) {
+      continue;
+    }
+
+    const normalizedName = name.toLowerCase();
+    if (REQUEST_HEADER_BLACKLIST.has(normalizedName)) {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((entry) => proxyHeaders.append(name, entry));
+      continue;
+    }
+
+    proxyHeaders.set(name, value);
+  }
+
+  proxyHeaders.set('x-proxy-by', 'onetapgo-firebase');
+
+  return proxyHeaders;
+}
+
+function applyProxyResponseHeaders(upstreamHeaders, res) {
+  if (typeof upstreamHeaders.getSetCookie === 'function') {
+    const setCookieHeaders = upstreamHeaders.getSetCookie();
+    if (setCookieHeaders.length > 0) {
+      res.set('set-cookie', setCookieHeaders);
+    }
+  }
+
+  upstreamHeaders.forEach((value, name) => {
+    if (name.toLowerCase() === 'set-cookie') {
+      return;
+    }
+
+    if (RESPONSE_HEADER_BLACKLIST.has(name.toLowerCase())) {
+      return;
+    }
+
+    res.set(name, value);
+  });
+}
+
+function shouldForwardRequestBody(method = '') {
+  const normalizedMethod = method.toUpperCase();
+  return normalizedMethod !== 'GET' && normalizedMethod !== 'HEAD';
+}
+
+function getPixWebhookRedisUrl() {
+  return process.env.UPSTASH_REDIS_URL || process.env.REDIS_URL || '';
+}
+
+function encodeRedisCommand(parts) {
+  const chunks = [`*${parts.length}\r\n`];
+
+  parts.forEach((part) => {
+    const value = String(part);
+    chunks.push(`$${Buffer.byteLength(value)}\r\n${value}\r\n`);
+  });
+
+  return chunks.join('');
+}
+
+function parseRedisReply(buffer) {
+  if (!buffer || buffer.length === 0) {
+    return null;
+  }
+
+  const prefix = String.fromCharCode(buffer[0]);
+  const lineEnd = buffer.indexOf('\r\n');
+
+  if (lineEnd === -1) {
+    return null;
+  }
+
+  const header = buffer.slice(1, lineEnd).toString();
+
+  if (prefix === '+' || prefix === '-' || prefix === ':') {
+    return {
+      type: prefix,
+      value: header,
+      bytesConsumed: lineEnd + 2
+    };
+  }
+
+  if (prefix === '$') {
+    const length = Number.parseInt(header, 10);
+
+    if (Number.isNaN(length)) {
+      throw new Error('Invalid Redis bulk reply length');
+    }
+
+    if (length === -1) {
+      return {
+        type: prefix,
+        value: null,
+        bytesConsumed: lineEnd + 2
+      };
+    }
+
+    const valueStart = lineEnd + 2;
+    const valueEnd = valueStart + length;
+    const totalBytes = valueEnd + 2;
+
+    if (buffer.length < totalBytes) {
+      return null;
+    }
+
+    return {
+      type: prefix,
+      value: buffer.slice(valueStart, valueEnd).toString(),
+      bytesConsumed: totalBytes
+    };
+  }
+
+  throw new Error(`Unsupported Redis reply type: ${prefix}`);
+}
+
+function connectPixWebhookRedis(redisUrlString) {
+  return new Promise((resolve, reject) => {
+    const redisUrl = new URL(redisUrlString);
+    const socket = tls.connect({
+      host: redisUrl.hostname,
+      port: Number.parseInt(redisUrl.port || '6379', 10),
+      servername: redisUrl.hostname
+    });
+
+    const cleanup = () => {
+      socket.off('secureConnect', onSecureConnect);
+      socket.off('error', onError);
+      socket.off('timeout', onTimeout);
+    };
+
+    const onSecureConnect = () => {
+      cleanup();
+      resolve({ redisUrl, socket });
+    };
+
+    const onError = (error) => {
+      cleanup();
+      reject(error);
+    };
+
+    const onTimeout = () => {
+      cleanup();
+      socket.destroy(new Error('Redis TLS connection timed out'));
+      reject(new Error('Redis TLS connection timed out'));
+    };
+
+    socket.setTimeout(PIX_WEBHOOK_PROXY_TIMEOUT_MS);
+    socket.once('secureConnect', onSecureConnect);
+    socket.once('error', onError);
+    socket.once('timeout', onTimeout);
+  });
+}
+
+function sendRedisCommand(socket, parts) {
+  return new Promise((resolve, reject) => {
+    let bufferedResponse = Buffer.alloc(0);
+    let settled = false;
+
+    const cleanup = () => {
+      socket.off('data', onData);
+      socket.off('error', onError);
+      socket.off('close', onClose);
+      socket.off('timeout', onTimeout);
+    };
+
+    const succeed = (reply) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      resolve(reply);
+    };
+
+    const fail = (error) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+      reject(error);
+    };
+
+    const onData = (chunk) => {
+      bufferedResponse = Buffer.concat([bufferedResponse, chunk]);
+
+      let reply;
+      try {
+        reply = parseRedisReply(bufferedResponse);
+      } catch (error) {
+        fail(error);
+        return;
+      }
+
+      if (!reply) {
+        return;
+      }
+
+      if (reply.type === '-') {
+        fail(new Error(`Redis command failed: ${reply.value}`));
+        return;
+      }
+
+      succeed(reply);
+    };
+
+    const onError = (error) => fail(error);
+    const onClose = () => fail(new Error('Redis connection closed unexpectedly'));
+    const onTimeout = () => fail(new Error('Redis command timed out'));
+
+    socket.on('data', onData);
+    socket.once('error', onError);
+    socket.once('close', onClose);
+    socket.once('timeout', onTimeout);
+    socket.write(encodeRedisCommand(parts));
+  });
+}
+
+async function publishPixWebhookRedisEvent(payload) {
+  const redisUrlString = getPixWebhookRedisUrl();
+
+  if (!redisUrlString) {
+    if (!hasLoggedMissingPixWebhookRedisUrl) {
+      logger.warn('proxyPixWebhook Redis publish skipped because UPSTASH_REDIS_URL is not configured');
+      hasLoggedMissingPixWebhookRedisUrl = true;
+    }
+
+    return null;
+  }
+
+  let socket;
+
+  try {
+    const connection = await connectPixWebhookRedis(redisUrlString);
+    const redisUrl = connection.redisUrl;
+    socket = connection.socket;
+
+    const username = decodeURIComponent(redisUrl.username || '');
+    const password = decodeURIComponent(redisUrl.password || '');
+
+    if (password) {
+      const authCommand = username ? ['AUTH', username, password] : ['AUTH', password];
+      await sendRedisCommand(socket, authCommand);
+    }
+
+    const publishReply = await sendRedisCommand(socket, [
+      'PUBLISH',
+      process.env.PIX_WEBHOOK_REDIS_CHANNEL || PIX_WEBHOOK_REDIS_CHANNEL,
+      JSON.stringify(payload)
+    ]);
+
+    await sendRedisCommand(socket, ['QUIT']).catch(() => null);
+    socket.end();
+
+    return Number.parseInt(publishReply.value || '0', 10);
+  } catch (error) {
+    if (socket) {
+      socket.destroy();
+    }
+
+    logger.error('proxyPixWebhook Redis publish failed', {
+      event: payload.event,
+      cnpj: payload.cnpj,
+      error: error.message
+    });
+
+    return null;
+  }
+}
+
+function publishPixWebhookRedisEventAsync(payload) {
+  void publishPixWebhookRedisEvent(payload);
+}
+
+exports.proxyPixWebhook = onRequest(
+  {
+    maxInstances: 5,
+    timeoutSeconds: 30
+  },
+  async (req, res) => {
+    const startedAt = Date.now();
+    const cnpj = extractPixWebhookCnpj(req.path);
+
+    if (!cnpj) {
+      logger.warn('proxyPixWebhook rejected invalid path', {
+        method: req.method,
+        path: req.path
+      });
+      res.status(400).json({ error: 'Invalid webhook PIX path' });
+      return;
+    }
+
+    const targetUrl = buildPixWebhookTargetUrl(req);
+
+    try {
+      const upstreamResponse = await fetch(targetUrl, {
+        method: req.method,
+        headers: buildProxyRequestHeaders(req.headers),
+        body: shouldForwardRequestBody(req.method) ? (req.rawBody || Buffer.alloc(0)) : undefined,
+        redirect: 'manual',
+        signal: AbortSignal.timeout(PIX_WEBHOOK_PROXY_TIMEOUT_MS)
+      });
+
+      const responseBuffer = Buffer.from(await upstreamResponse.arrayBuffer());
+
+      applyProxyResponseHeaders(upstreamResponse.headers, res);
+
+      const durationMs = Date.now() - startedAt;
+      const redisPayload = {
+        event: 'proxy_success',
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        cnpj,
+        path: req.path,
+        targetUrl,
+        status: upstreamResponse.status,
+        durationMs
+      };
+
+      logger.info('proxyPixWebhook forwarded request', {
+        method: req.method,
+        cnpj,
+        targetUrl,
+        status: upstreamResponse.status,
+        durationMs
+      });
+
+      res.status(upstreamResponse.status);
+
+      if (req.method.toUpperCase() === 'HEAD') {
+        res.end();
+        publishPixWebhookRedisEventAsync(redisPayload);
+        return;
+      }
+
+      res.send(responseBuffer);
+      publishPixWebhookRedisEventAsync(redisPayload);
+    } catch (error) {
+      const durationMs = Date.now() - startedAt;
+      const redisPayload = {
+        event: 'proxy_error',
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        cnpj,
+        path: req.path,
+        targetUrl,
+        durationMs,
+        error: error.message
+      };
+
+      logger.error('proxyPixWebhook upstream request failed', {
+        method: req.method,
+        cnpj,
+        targetUrl,
+        durationMs,
+        error: error.message
+      });
+
+      res.status(502).json({ error: 'Failed to reach upstream webhook' });
+      publishPixWebhookRedisEventAsync(redisPayload);
+    }
+  }
+);
 
 // --- PAGBANK GOOGLE PAY FUNCTION ---
 exports.createPagBankOrder = onRequest(
@@ -893,3 +1314,143 @@ exports.getTenantBySlug = onRequest(
   }
 );
 
+function sanitizeSlug(value = '') {
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, '');
+}
+
+function normalizePaymentMethods(paymentMethods = {}) {
+  const primary = Array.isArray(paymentMethods.primary) ? paymentMethods.primary : [];
+  const secondary = Array.isArray(paymentMethods.secondary) ? paymentMethods.secondary : [];
+
+  return { primary, secondary };
+}
+
+function validateGivingOptions(givingOptions) {
+  if (!Array.isArray(givingOptions) || givingOptions.length === 0) {
+    return 'givingOptions must be a non-empty array';
+  }
+
+  const hasInvalidOption = givingOptions.some((option) => {
+    return !option ||
+      typeof option.id !== 'string' ||
+      typeof option.label !== 'string' ||
+      typeof option.value !== 'string' ||
+      !option.id.trim() ||
+      !option.label.trim() ||
+      !option.value.trim();
+  });
+
+  return hasInvalidOption ?
+    'each givingOptions item must include non-empty string fields: id, label, value' :
+    null;
+}
+
+exports.createTenant = onRequest(
+  {
+    cors: true,
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    try {
+      const {
+        slug,
+        name,
+        domain,
+        currency,
+        stripeAccountId,
+        stripePublicKey,
+        pixKey,
+        logoUrl,
+        givingOptions,
+        paymentMethods,
+        theme = {},
+      } = req.body || {};
+
+      const normalizedSlug = sanitizeSlug(slug);
+
+      if (!normalizedSlug) {
+        return res.status(400).json({ error: 'slug is required and must contain only letters, numbers, or hyphens' });
+      }
+
+      if (!name || typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: 'name is required' });
+      }
+
+      if (!currency || typeof currency !== 'string' || !currency.trim()) {
+        return res.status(400).json({ error: 'currency is required' });
+      }
+
+      const givingOptionsError = validateGivingOptions(givingOptions);
+      if (givingOptionsError) {
+        return res.status(400).json({ error: givingOptionsError });
+      }
+
+      if (!theme.primaryColor || typeof theme.primaryColor !== 'string' || !theme.primaryColor.trim()) {
+        return res.status(400).json({ error: 'theme.primaryColor is required' });
+      }
+
+      const db = admin.firestore();
+      const tenantRef = db.collection('tenants').doc(normalizedSlug);
+      const existingTenant = await tenantRef.get();
+
+      if (existingTenant.exists) {
+        return res.status(409).json({ error: 'Tenant already exists', slug: normalizedSlug });
+      }
+
+      const normalizedTenant = {
+        id: normalizedSlug,
+        slug: normalizedSlug,
+        name: name.trim(),
+        domain: typeof domain === 'string' && domain.trim() ? domain.trim().toLowerCase() : null,
+        currency: currency.trim().toLowerCase(),
+        stripeAccountId: typeof stripeAccountId === 'string' && stripeAccountId.trim() ? stripeAccountId.trim() : null,
+        stripePublicKey: typeof stripePublicKey === 'string' && stripePublicKey.trim() ? stripePublicKey.trim() : null,
+        pixKey: typeof pixKey === 'string' && pixKey.trim() ? pixKey.trim() : null,
+        logoUrl: typeof logoUrl === 'string' && logoUrl.trim() ? logoUrl.trim() : null,
+        givingOptions: givingOptions.map((option) => ({
+          id: option.id.trim(),
+          label: option.label.trim(),
+          value: option.value.trim(),
+          ...(typeof option.pixRegistrationRequired === 'boolean' ? { pixRegistrationRequired: option.pixRegistrationRequired } : {}),
+        })),
+        paymentMethods: normalizePaymentMethods(paymentMethods),
+        theme: {
+          primaryColor: theme.primaryColor.trim(),
+          ...(typeof theme.secondaryColor === 'string' && theme.secondaryColor.trim() ? { secondaryColor: theme.secondaryColor.trim() } : {}),
+          ...(typeof theme.logo === 'string' && theme.logo.trim() ? { logo: theme.logo.trim() } : {}),
+        },
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      await tenantRef.set(normalizedTenant);
+
+      logger.info(`Tenant created successfully: ${normalizedSlug}`);
+
+      return res.status(201).json({
+        success: true,
+        tenant: {
+          ...normalizedTenant,
+          createdAt: null,
+          updatedAt: null,
+        },
+      });
+    } catch (error) {
+      logger.error('Error in createTenant:', error);
+      return res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+);

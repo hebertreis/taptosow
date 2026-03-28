@@ -122,6 +122,8 @@ struct SystemState {
     volatile bool isMqttConnected = false;
     volatile bool isNfcConnected = false;
     volatile bool portalActive = false;
+    volatile bool accessPointActive = false;
+    volatile bool wifiReconfigPending = false;
     
     // Active state
     volatile DeviceState state = STATE_BOOT;
@@ -132,6 +134,7 @@ struct SystemState {
     String wifiSsid = "";
     String wifiIp = "";
     int16_t wifiRssi = 0;
+    String lastWifiError = "";
     
     // Timing
     volatile unsigned long lastHeartbeat = 0;

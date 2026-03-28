@@ -66,6 +66,18 @@ private:
     void _handleRestart();
     void _handleSetDebug(JsonDocument& doc);
     void _handleSetReadMode(JsonDocument& doc);
+    void _handleWifiScan(JsonDocument& doc);
+    void _handleWifiSet(JsonDocument& doc);
+    void _handleWifiReset(JsonDocument& doc);
+    void _handleWifiPortal(JsonDocument& doc);
+    void _publishPendingWifiSetResult();
+
+    bool _pendingWifiSetResult = false;
+    bool _pendingWifiSetSuccess = false;
+    bool _pendingWifiSetPortalActive = false;
+    String _pendingWifiSetRequestId = "";
+    String _pendingWifiSetSsid = "";
+    String _pendingWifiSetMessage = "";
 };
 
 extern MqttManager g_mqttManager;

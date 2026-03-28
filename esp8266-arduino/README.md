@@ -1,6 +1,55 @@
-# OneTapGo ESP8266 NFC Writer
+# OneTapGo ESP8266 NFC Writer 5.1.0
 
-Guia curto de operacao do firmware MQTT + NFC sob demanda.
+Firmware para ESP8266 com RC522, OLED SSD1306, MQTT e configuracao de Wi-Fi local/remota.
+
+## Pinout (HW-364A / NodeMCU LoLin V3)
+
+### RC522 (SPI)
+
+| RC522 | ESP8266 GPIO | NodeMCU |
+|-------|--------------|---------|
+| SCK   | GPIO 14      | D5      |
+| MISO  | GPIO 12      | D6      |
+| MOSI  | GPIO 13      | D7      |
+| SS    | GPIO 4       | D2      |
+| RST   | GPIO 5       | D1      |
+| 3.3V  | 3.3V         | 3.3V    |
+| GND   | GND          | GND     |
+
+### SSD1306 OLED (I2C)
+
+| OLED | ESP8266 GPIO | NodeMCU | Nota                    |
+|------|--------------|---------|-------------------------|
+| SDA  | GPIO 14      | D5      | Compartilhado com SCK   |
+| SCL  | GPIO 12      | D6      | Compartilhado com MISO  |
+| VCC  | 3.3V         | 3.3V    |                         |
+| GND  | GND          | GND     |                         |
+
+> **Importante:** O OLED compartilha os mesmos pinos GPIO 12 e 14 com o RC522. O firmware gerencia automaticamente a alternância entre SPI e I2C.
+
+### Compatibilidade com outras placas ESP8266
+
+#### Sem OLED (apenas RC522)
+
+| RC522 | GPIO Alternativo | Compatível com      |
+|-------|------------------|---------------------|
+| SS    | GPIO 15 (D8)     | Wemos D1 Mini, etc. |
+| RST   | GPIO 5 (D1)      | Todas as placas     |
+
+#### Com OLED em pinos dedicados
+
+| OLED | GPIO Alternativo | NodeMCU |
+|------|------------------|---------|
+| SDA  | GPIO 4 (D2)      | D2      |
+| SCL  | GPIO 5 (D1)      | D1      |
+
+Neste caso, altere em `src/config/hardware_config.h`:
+
+```cpp
+#define OLED_SDA_PIN   4
+#define OLED_SCL_PIN   5
+#define RC522_SS_PIN   15
+```
 
 ## Visao geral
 
@@ -8,48 +57,65 @@ O dispositivo:
 
 - conecta no Wi-Fi configurado;
 - conecta no broker MQTT;
-- fica em modo `idle` exibindo status no LCD;
-- ativa o modulo NFC somente quando recebe um comando MQTT;
-- le ou grava tags NFC em NDEF e publica o resultado no MQTT.
+- mostra uma tela amigavel no OLED enquanto aguarda comandos;
+- le ou grava tags NFC sob demanda;
+- permite reconfigurar Wi-Fi pelo botao FLASH ou por MQTT.
 
-Uso principal:
-
-- `write`: grava uma URL como registro NDEF URI (`U`) compativel com iPhone e Android;
-- `read`: le a tag, procura dados NDEF e devolve UID + conteudo encontrado.
-
-## Setup rapido
-
-1. Compile e grave o firmware com PlatformIO.
-2. Ligue o dispositivo.
-3. Se o Wi-Fi ja estiver configurado, ele tentara conectar automaticamente.
-4. Se nao estiver conectado, o LCD mostrara o AP de configuracao e a senha.
-5. Configure a rede Wi-Fi pelo portal e aguarde a conexao MQTT.
-
-## LCD e fallback de Wi-Fi
-
-Em operacao normal, o LCD mostra informacoes importantes do hardware:
-
-- status do Wi-Fi;
-- SSID;
-- RSSI/sinal;
-- endereco IP;
-- status do MQTT;
-- status do NFC;
-- estado atual do dispositivo.
-
-Se o dispositivo nao conseguir entrar no Wi-Fi, o LCD mostra o AP local de configuracao:
-
-- SSID: `OneTapGo_XXXXXX`
-- Senha: `onetapgo123`
-
-O sufixo do SSID varia conforme o dispositivo.
-
-## Topicos MQTT
-
-Todos os topicos ficam sob:
+URL do painel admin:
 
 ```text
-onetapgo/{deviceId}
+https://onetapgo.site/admin
+```
+
+## Tela e botao FLASH
+
+Tela idle:
+
+- mostra que o dispositivo esta pronto para receber comando;
+- mostra uma identificacao curta do `deviceId` usado no admin/MQTT;
+- alterna no rodape entre a URL do admin e uma dica curta de uso.
+
+Gestos do botao FLASH (`GPIO0`):
+
+- `1 toque`: inicia leitura NFC local;
+- `2 toques`: mostra a tela de acesso ao admin;
+- `3 toques`: mostra a tela tecnica e permanece nela;
+- `5s pressionado`: abre o portal Wi-Fi.
+
+Observacao:
+
+- `GPIO0` continua sendo pino de boot/programacao; se estiver pressionado ao reiniciar, a placa pode entrar em modo flash.
+
+## LED azul interno
+
+- pisca quando recebe ou publica MQTT;
+- fica aceso durante jobs de leitura e gravacao NFC;
+- usa o LED onboard do ESP8266 em `GPIO2` com logica `active-low`.
+
+## Wi-Fi local
+
+Se nao houver Wi-Fi valido, o dispositivo abre o AP:
+
+```text
+SSID: OneTapGo_XXXXXX
+Senha: onetapgo123
+```
+
+No portal:
+
+- conecte no AP do dispositivo;
+- acesse `192.168.4.1`;
+- escolha a nova rede e salve.
+
+## MQTT
+
+Topicos:
+
+```text
+onetapgo/{deviceId}/command
+onetapgo/{deviceId}/status
+onetapgo/{deviceId}/heartbeat
+onetapgo/{deviceId}/result
 ```
 
 Topicos usados:
@@ -66,15 +132,14 @@ Topicos usados:
 - `onetapgo/{deviceId}/result`
   - publish do dispositivo
   - resultado de leitura, gravacao, timeout ou erro
+
+Topico legado:
+
 - `onetapgo/{deviceId}/debug`
-  - publish do dispositivo
-  - estado de debug e flags de compatibilidade
+  - era usado por versoes antigas para flags operacionais
+  - no firmware atual `5.1.0` nao ha publish dedicado nesse topico; flags como `set_debug` sao refletidas em `/status`
 
-## Comandos em `/command`
-
-Todos os comandos usam JSON e o campo `type`.
-
-Comandos aceitos:
+Comandos suportados em `/command`:
 
 - `write`
 - `read`
@@ -82,22 +147,13 @@ Comandos aceitos:
 - `restart`
 - `set_debug`
 - `set_read_mode`
-- `write_tag`  (alias legado de `write`)
-- `read_tag`   (alias legado de `read`)
+- `wifi_scan`
+- `wifi_set`
+- `wifi_reset`
+- `wifi_portal`
+- `write_tag` e `read_tag` como aliases legados
 
 ### `write`
-
-Grava uma unica URL como NDEF URI record (`U`).
-
-Campos aceitos:
-
-- `type`: `write`
-- `url`: URL obrigatoria, somente `http://` ou `https://`
-- `timeoutSec`: timeout opcional para apresentar a tag
-- `lock`: opcional, `true` para tentar bloquear a tag apos gravacao
-- `requestId`: opcional, usado para correlacao com a interface web
-
-Exemplo:
 
 ```json
 {
@@ -109,24 +165,7 @@ Exemplo:
 }
 ```
 
-Observacoes:
-
-- payloads que nao forem URL `http/https` sao recusados;
-- a gravacao usa NDEF URI record, nao texto livre;
-- por padrao a tag permanece regravavel;
-- `lock: true` e opcional e depende do tipo de cartao suportar bloqueio seguro.
-
 ### `read`
-
-Ativa o leitor NFC e espera uma tag pelo tempo informado.
-
-Campos aceitos:
-
-- `type`: `read`
-- `timeoutSec`: timeout opcional para apresentar a tag
-- `requestId`: opcional, usado para correlacao
-
-Exemplo:
 
 ```json
 {
@@ -136,139 +175,103 @@ Exemplo:
 }
 ```
 
-### `status`
-
-Solicita publicacao imediata do estado atual em `/status`.
-
-Exemplo:
+### `wifi_scan`
 
 ```json
 {
-  "type": "status"
+  "type": "wifi_scan",
+  "requestId": "req-wifi-scan"
 }
 ```
 
-### `restart`
+Resultado:
 
-Solicita reinicio do dispositivo.
+- `wifi_scan_result`
+- lista limitada das redes mais fortes com `ssid`, `rssi`, `quality`, `secure`, `channel`
 
-Exemplo:
+### `wifi_set`
 
 ```json
 {
-  "type": "restart"
+  "type": "wifi_set",
+  "requestId": "req-wifi-set",
+  "ssid": "MeuWiFi",
+  "password": "senha123",
+  "timeoutSec": 30,
+  "portalOnFail": true
 }
 ```
 
-### `set_debug`
+Fluxo:
 
-Liga ou desliga o modo de debug publicado em `/debug`.
+- publica `wifi_set_ack` antes da troca;
+- troca para a nova rede;
+- publica `wifi_set_result` quando conseguir reconectar ao broker.
 
-Exemplo:
+### `wifi_reset`
 
 ```json
 {
-  "type": "set_debug",
-  "enabled": true
+  "type": "wifi_reset",
+  "requestId": "req-wifi-reset",
+  "startPortal": true
 }
 ```
 
-### `set_read_mode`
+Resultado:
 
-Flag de compatibilidade com integracoes antigas. Nao reativa leitura continua do fluxo novo.
+- `wifi_reset_result`
 
-Exemplo:
+### `wifi_portal`
 
 ```json
 {
-  "type": "set_read_mode",
-  "enabled": false
+  "type": "wifi_portal",
+  "requestId": "req-wifi-portal",
+  "enabled": true,
+  "timeoutSec": 180
 }
 ```
 
-## O que o dispositivo publica
+Resultado:
 
-### `/status`
+- `wifi_portal_result`
 
-Estado atual do dispositivo. A interface web pode esperar, em alto nivel:
+## Status e resultados
 
-- `deviceId`, versao, uptime;
-- estado do Wi-Fi, SSID, IP, RSSI;
-- estado do MQTT;
-- estado do NFC;
-- job NFC atual, quando existir;
-- ultimo erro, quando existir.
+`/status` inclui:
 
-Essa publicacao deve ser tratada como snapshot atual do hardware. Normalmente e enviada como retained.
+- `deviceId`
+- `version`
+- `state`
+- `ssid`, `ip`, `rssi`
+- `portalActive`, `apActive`
+- `wifiReconfigPending`
+- `mqttConnected`
+- `nfcReady`
+- `lastWifiError` e ultimo erro geral, quando existirem
 
-### `/heartbeat`
-
-Pulso periodico para monitoramento.
-
-A interface web pode esperar:
-
-- `deviceId`;
-- status resumido de Wi-Fi/MQTT/NFC;
-- uptime;
-- memoria livre/telemetria basica;
-- timestamp.
-
-Use esse topico para detectar se o dispositivo segue online.
-
-### `/result`
-
-Resultado de operacoes NFC.
-
-Tipos esperados em alto nivel:
+`/result` pode publicar:
 
 - `tag_read`
 - `write_success`
 - `write_error`
 - `nfc_timeout`
 - `hardware_error`
+- `wifi_scan_result`
+- `wifi_set_ack`
+- `wifi_set_result`
+- `wifi_reset_result`
+- `wifi_portal_result`
 
-Campos que a interface web pode esperar, conforme o caso:
+## Build
 
-- `requestId`;
-- `command`;
-- `success`;
-- `errorCode`;
-- `message`;
-- `uid` da tag;
-- `tagType`, familia e capacidade;
-- informacoes NDEF encontradas;
-- URL gravada ou lida;
-- indicacao de lock solicitado/aplicado.
+```bash
+pio run -e nodemcuv2
+```
 
-Em leitura, o payload retorna o UID e tenta sempre extrair dados NDEF.
+Upload:
 
-Em gravacao, o payload informa sucesso ou erro da escrita e da verificacao.
-
-### `/debug`
-
-Topico auxiliar para flags operacionais.
-
-A interface web pode esperar:
-
-- modo debug habilitado/desabilitado;
-- flag de compatibilidade `set_read_mode`;
-- eventualmente outros sinais de diagnostico do firmware.
-
-## Fluxo operacional esperado
-
-1. A interface web envia `write` ou `read` em `/command`.
-2. O dispositivo pausa a atualizacao normal do LCD e ativa o NFC sob demanda.
-3. Se uma tag for apresentada dentro do timeout:
-   - `read`: le UID + NDEF e publica em `/result`;
-   - `write`: grava a URL em NDEF URI e publica em `/result`.
-4. Se nenhuma tag for apresentada no prazo, publica `nfc_timeout`.
-5. Ao terminar, o dispositivo volta ao dashboard normal no LCD.
-
-## Compatibilidade
-
-Aliases legados suportados:
-
-- `write_tag` -> `write`
-- `read_tag` -> `read`
-
-Campos legados fora do fluxo atual, como `tenantId` e `sectorId`, nao fazem parte do contrato novo.
+```bash
+pio run -e nodemcuv2 -t upload
+```

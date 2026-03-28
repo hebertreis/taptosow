@@ -15,6 +15,7 @@ class NfcManager {
 public:
     bool begin();
     bool tagPresent();
+    bool selectTag();
     bool readTag(NfcCardInfo& card, String* error = nullptr);
     bool writeTag(const String& url,
                   bool lockCard,

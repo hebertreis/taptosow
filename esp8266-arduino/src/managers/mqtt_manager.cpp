@@ -5,16 +5,18 @@
 
 #include "managers/mqtt_manager.h"
 #include "managers/lcd_manager.h"
+#include "managers/status_led_manager.h"
+#include "managers/wifi_manager.h"
 
 #include <cstring>
 
 namespace {
 
-constexpr size_t kCommandJsonSize = 256;
-constexpr size_t kResultJsonSize = 640;
+constexpr size_t kCommandJsonSize = 384;
+constexpr size_t kResultJsonSize = 896;
 constexpr size_t kStatusPayloadSize = 640;
 constexpr size_t kHeartbeatPayloadSize = 256;
-constexpr size_t kResultPayloadSize = 768;
+constexpr size_t kResultPayloadSize = 1024;
 
 String makeOfflineStatusPayload() {
     StaticJsonDocument<128> doc;
@@ -143,6 +145,7 @@ void MqttManager::loop() {
 
     g_system.isMqttConnected = true;
     g_mqttClient.loop();
+    _publishPendingWifiSetResult();
 
     if (now - _lastHeartbeat >= HEARTBEAT_INTERVAL_MS) {
         publishHeartbeat();
@@ -234,6 +237,8 @@ bool MqttManager::publish(const String& topic, const char* payload, bool retaine
         Serial.print(F("[MQTT] Publish failed state="));
         Serial.println(g_mqttClient.state());
         g_system.isMqttConnected = g_mqttClient.connected();
+    } else {
+        g_statusLed.signalActivity();
     }
     return ok;
 }
@@ -374,6 +379,7 @@ void MqttManager::_handleMessage(char* topic, byte* payload, unsigned int length
     Serial.print(topic);
     Serial.print(F(" bytes="));
     Serial.println(length);
+    g_statusLed.signalActivity();
 
     StaticJsonDocument<kCommandJsonSize> doc;
     DeserializationError error = deserializeJson(doc, payload, length);
@@ -415,6 +421,22 @@ void MqttManager::_handleMessage(char* topic, byte* payload, unsigned int length
     }
     if (strcmp(commandType, "set_read_mode") == 0) {
         _handleSetReadMode(doc);
+        return;
+    }
+    if (strcmp(commandType, "wifi_scan") == 0) {
+        _handleWifiScan(doc);
+        return;
+    }
+    if (strcmp(commandType, "wifi_set") == 0) {
+        _handleWifiSet(doc);
+        return;
+    }
+    if (strcmp(commandType, "wifi_reset") == 0) {
+        _handleWifiReset(doc);
+        return;
+    }
+    if (strcmp(commandType, "wifi_portal") == 0) {
+        _handleWifiPortal(doc);
         return;
     }
 
@@ -555,4 +577,137 @@ void MqttManager::_handleSetDebug(JsonDocument& doc) {
 void MqttManager::_handleSetReadMode(JsonDocument& doc) {
     setLegacyReadMode(parseBoolValue(doc["enabled"], g_system.legacyReadMode));
     publishStatus(true);
+}
+
+void MqttManager::_handleWifiScan(JsonDocument& doc) {
+    const String requestId = _requestIdFromDoc(doc);
+    StaticJsonDocument<kResultJsonSize> result;
+    addBaseResultFields(result, "wifi_scan_result", requestId, "wifi_scan", true);
+    JsonArray networks = result.createNestedArray("networks");
+    bool truncated = false;
+    const bool ok = g_wifiManager.scanNetworks(networks, truncated);
+    result["truncated"] = truncated;
+
+    if (!ok) {
+        result["success"] = false;
+        result["code"] = "wifi_scan_failed";
+        result["message"] = "Nao foi possivel listar redes";
+    } else {
+        result["count"] = networks.size();
+        result["code"] = "ok";
+    }
+    _publishDoc(_resultTopic, result, false);
+}
+
+void MqttManager::_handleWifiSet(JsonDocument& doc) {
+    const String requestId = _requestIdFromDoc(doc);
+    String ssid = String(doc["ssid"] | "");
+    String password = String(doc["password"] | "");
+    ssid.trim();
+
+    if (ssid.length() == 0) {
+        publishHardwareError("wifi", "invalid_ssid", "SSID obrigatorio", requestId);
+        return;
+    }
+
+    StaticJsonDocument<256> ack;
+    addBaseResultFields(ack, "wifi_set_ack", requestId, "wifi_set", true);
+    ack["stage"] = "switching";
+    ack["ssid"] = ssid;
+    _publishDoc(_resultTopic, ack, false);
+
+    const unsigned long timeoutSec = doc["timeoutSec"] | WIFI_COMMAND_CONNECT_TIMEOUT_SEC;
+    const bool portalOnFail = parseBoolValue(doc["portalOnFail"], true);
+    String errorMessage;
+
+    const bool success = g_wifiManager.applyCredentials(
+        ssid,
+        password,
+        timeoutSec * 1000UL,
+        portalOnFail,
+        errorMessage
+    );
+
+    _pendingWifiSetResult = true;
+    _pendingWifiSetSuccess = success;
+    _pendingWifiSetPortalActive = g_system.portalActive;
+    _pendingWifiSetRequestId = requestId;
+    _pendingWifiSetSsid = ssid;
+    _pendingWifiSetMessage = success ? String("WiFi atualizado") :
+                                       (errorMessage.length() > 0 ? errorMessage : String("Falha ao trocar WiFi"));
+
+    if (g_system.isWifiConnected) {
+        connect();
+        _publishPendingWifiSetResult();
+    }
+}
+
+void MqttManager::_handleWifiReset(JsonDocument& doc) {
+    const String requestId = _requestIdFromDoc(doc);
+    const bool startPortal = parseBoolValue(doc["startPortal"], true);
+    String errorMessage;
+    const bool success = g_wifiManager.resetCredentials(startPortal, errorMessage);
+
+    StaticJsonDocument<384> result;
+    addBaseResultFields(result, "wifi_reset_result", requestId, "wifi_reset", success);
+    result["portalActive"] = g_system.portalActive;
+    result["portalSsid"] = g_system.portalApSsid;
+    if (!success) {
+        result["code"] = "wifi_reset_failed";
+        result["message"] = errorMessage;
+    } else {
+        result["code"] = "ok";
+    }
+    _publishDoc(_resultTopic, result, false);
+}
+
+void MqttManager::_handleWifiPortal(JsonDocument& doc) {
+    const String requestId = _requestIdFromDoc(doc);
+    const bool enabled = parseBoolValue(doc["enabled"], true);
+
+    StaticJsonDocument<384> result;
+    if (!enabled) {
+        addBaseResultFields(result, "wifi_portal_result", requestId, "wifi_portal", true);
+        result["portalActive"] = false;
+        result["portalSsid"] = g_system.portalApSsid;
+        result["code"] = "noop";
+        _publishDoc(_resultTopic, result, false);
+        return;
+    }
+
+    addBaseResultFields(result, "wifi_portal_result", requestId, "wifi_portal", true);
+    result["portalActive"] = true;
+    result["portalSsid"] = g_system.portalApSsid;
+    result["code"] = "opening";
+    _publishDoc(_resultTopic, result, false);
+
+    const unsigned long timeoutSec = doc["timeoutSec"] | WIFI_CONFIG_PORTAL_TIMEOUT_SEC;
+    String errorMessage;
+    g_wifiManager.openConfigPortal(timeoutSec, errorMessage);
+}
+
+void MqttManager::_publishPendingWifiSetResult() {
+    if (!_pendingWifiSetResult || !g_mqttClient.connected()) {
+        return;
+    }
+
+    StaticJsonDocument<384> result;
+    addBaseResultFields(result, "wifi_set_result", _pendingWifiSetRequestId, "wifi_set", _pendingWifiSetSuccess);
+    result["ssid"] = _pendingWifiSetSsid;
+    result["portalActive"] = g_system.portalActive;
+    result["portalSsid"] = g_system.portalApSsid;
+    result["ip"] = g_system.wifiIp;
+    if (_pendingWifiSetSuccess) {
+        result["code"] = "ok";
+    } else {
+        result["code"] = "wifi_set_failed";
+        result["message"] = _pendingWifiSetMessage;
+    }
+
+    if (_publishDoc(_resultTopic, result, false)) {
+        _pendingWifiSetResult = false;
+        _pendingWifiSetRequestId = "";
+        _pendingWifiSetSsid = "";
+        _pendingWifiSetMessage = "";
+    }
 }
