@@ -12,6 +12,9 @@
       ]
     }
   ],
+  "firestore": {
+    "indexes": "firestore.indexes.json"
+  },
   "hosting": {
     "public": "send-din-din/dist",
     "ignore": [
@@ -84,6 +87,22 @@
       {
         "source": "/api/form-submissions",
         "function": "saveFormSubmission"
+      },
+      {
+        "source": "/api/tenant-tags/update-url",
+        "function": "updateTenantTagUrl"
+      },
+      {
+        "source": "/api/tags/update-by-ids",
+        "function": "updateTagUrlByIds"
+      },
+      {
+        "source": "/api/tags",
+        "function": "listTags"
+      },
+      {
+        "source": "/api/tags/kpis",
+        "function": "getTagKpis"
       },
       {
         "source": "**",

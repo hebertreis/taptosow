@@ -96,6 +96,8 @@ struct NfcJob {
     unsigned long timeoutMs = NFC_DEFAULT_COMMAND_TIMEOUT_SEC * 1000UL;
     unsigned long startedAt = 0;
     bool timeoutReported = false;
+    uint8_t tagConfirmations = 0;
+    String lastSeenUid = "";
 };
 
 // ============================================================================

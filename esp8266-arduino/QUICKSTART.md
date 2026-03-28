@@ -1,4 +1,4 @@
-# OneTapGo ESP8266 5.1.0 - Quick Start
+# OneTapGo ESP8266 5.1.1 - Quick Start
 
 ## 1. Build
 
@@ -85,7 +85,7 @@ Comandos principais:
 
 No serial monitor, valide:
 
-- versao `5.1.0`;
+- versao `5.1.1`;
 - `deviceId`;
 - Wi-Fi conectado;
 - MQTT conectado;

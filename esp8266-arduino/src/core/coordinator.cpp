@@ -371,10 +371,24 @@ void Coordinator::_handleNfcJob() {
     g_system.lastNfcPoll = now;
 
     if (!g_nfcManager.selectTag()) {
+        g_system.nfcJob.tagConfirmations = 0;
+        g_system.nfcJob.lastSeenUid = "";
         return;
     }
 
-    Serial.println(F("[NFC] Tag detected, starting operation"));
+    const String currentUid = g_nfcManager.getLastUid();
+    if (currentUid != g_system.nfcJob.lastSeenUid) {
+        g_system.nfcJob.lastSeenUid = currentUid;
+        g_system.nfcJob.tagConfirmations = 1;
+        return;
+    }
+
+    g_system.nfcJob.tagConfirmations++;
+    if (g_system.nfcJob.tagConfirmations < 2) {
+        return;
+    }
+
+    Serial.println(F("[NFC] Tag confirmed, starting operation"));
     stateSet(STATE_NFC_ACTIVE);
 
     NfcCardInfo card;

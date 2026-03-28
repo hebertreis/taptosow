@@ -392,7 +392,14 @@ bool NfcManager::begin() {
 
     g_mfrc522.PCD_Init();
     delay(NFC_INIT_DELAY_MS);
+
     g_mfrc522.PCD_SetAntennaGain(MFRC522::RxGain_max);
+
+    g_mfrc522.PCD_WriteRegister(MFRC522::RFCfgReg, 0x08 | 0x07);
+    g_mfrc522.PCD_WriteRegister(MFRC522::ModWidthReg, RC522_MOD_WIDTH);
+    g_mfrc522.PCD_WriteRegister(MFRC522::DemodReg, 0x4D);
+    g_mfrc522.PCD_WriteRegister(MFRC522::TxControlReg, 0x83);
+
     g_nfc.begin(false);
 
     _firmwareVersion = g_mfrc522.PCD_ReadRegister(MFRC522::VersionReg);
@@ -408,9 +415,24 @@ bool NfcManager::begin() {
     } else {
         Serial.print(F("[NFC] RC522 firmware=0x"));
         Serial.println(_firmwareVersion, HEX);
+        Serial.print(F("[NFC] RFCfgReg=0x"));
+        Serial.println(g_mfrc522.PCD_ReadRegister(MFRC522::RFCfgReg), HEX);
+        Serial.print(F("[NFC] ModWidthReg=0x"));
+        Serial.println(g_mfrc522.PCD_ReadRegister(MFRC522::ModWidthReg), HEX);
     }
 
     return _initialized;
+}
+
+String NfcManager::getLastUid() const {
+    if (g_mfrc522.uid.size == 0) {
+        return "";
+    }
+    char hexBuffer[32];
+    for (byte i = 0; i < g_mfrc522.uid.size; i++) {
+        sprintf(hexBuffer + i * 2, "%02X", g_mfrc522.uid.uidByte[i]);
+    }
+    return String(hexBuffer);
 }
 
 bool NfcManager::tagPresent() {
@@ -554,12 +576,48 @@ bool NfcManager::_selectTag() {
     g_mfrc522.PCD_StopCrypto1();
     byte atqa[2] = {0};
     byte atqaSize = sizeof(atqa);
-    MFRC522::StatusCode requestStatus = g_mfrc522.PICC_RequestA(atqa, &atqaSize);
+    MFRC522::StatusCode requestStatus;
+
+#if NFC_USE_WAKEUP_FIRST
+    requestStatus = g_mfrc522.PICC_WakeupA(atqa, &atqaSize);
+    if (requestStatus != MFRC522::STATUS_OK && requestStatus != MFRC522::STATUS_COLLISION) {
+        atqaSize = sizeof(atqa);
+        requestStatus = g_mfrc522.PICC_RequestA(atqa, &atqaSize);
+    }
+#else
+    requestStatus = g_mfrc522.PICC_RequestA(atqa, &atqaSize);
     if (requestStatus != MFRC522::STATUS_OK && requestStatus != MFRC522::STATUS_COLLISION) {
         atqaSize = sizeof(atqa);
         requestStatus = g_mfrc522.PICC_WakeupA(atqa, &atqaSize);
     }
+#endif
+
     if (requestStatus != MFRC522::STATUS_OK && requestStatus != MFRC522::STATUS_COLLISION) {
+        static unsigned long lastDiagTime = 0;
+        unsigned long now = millis();
+        if (now - lastDiagTime > 5000) {
+            lastDiagTime = now;
+            byte txControl = g_mfrc522.PCD_ReadRegister(MFRC522::TxControlReg);
+            byte status2 = g_mfrc522.PCD_ReadRegister(MFRC522::Status2Reg);
+            byte commIrq = g_mfrc522.PCD_ReadRegister(MFRC522::ComIrqReg);
+            byte divIrq = g_mfrc522.PCD_ReadRegister(MFRC522::DivIrqReg);
+            byte rxGain = g_mfrc522.PCD_ReadRegister(MFRC522::RFCfgReg);
+            Serial.print(F("[NFC] Diag - TX=0x"));
+            Serial.print(txControl, HEX);
+            Serial.print(F(" RxGain=0x"));
+            Serial.print(rxGain, HEX);
+            Serial.print(F(" Status2=0x"));
+            Serial.print(status2, HEX);
+            Serial.print(F(" Irq=0x"));
+            Serial.print(commIrq, HEX);
+            Serial.print(F("/0x"));
+            Serial.println(divIrq, HEX);
+            if (!(txControl & 0x03)) {
+                Serial.println(F("[NFC] WARNING: Antenna might be OFF!"));
+                g_mfrc522.PCD_WriteRegister(MFRC522::TxControlReg, 0x83);
+            }
+            Serial.println(F("[NFC] Tip: Try holding tag 1-2mm above antenna coil"));
+        }
         Serial.print(F("[NFC] Select request failed status="));
         Serial.println(statusCodeName(requestStatus));
         nfcReleaseLock();

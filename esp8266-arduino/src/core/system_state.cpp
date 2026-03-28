@@ -112,6 +112,8 @@ void clearNfcJob() {
     g_system.nfcJob.timeoutMs = NFC_DEFAULT_COMMAND_TIMEOUT_SEC * 1000UL;
     g_system.nfcJob.startedAt = 0;
     g_system.nfcJob.timeoutReported = false;
+    g_system.nfcJob.tagConfirmations = 0;
+    g_system.nfcJob.lastSeenUid = "";
 }
 
 bool nfcJobActive() {
@@ -145,7 +147,11 @@ bool nfcRequestLock() {
     // Re-assert SPI ownership on the shared pins before touching RC522.
     SPI.begin();
     g_mfrc522.PCD_Init();
-    g_mfrc522.PCD_SetAntennaGain(g_mfrc522.RxGain_max);
+    g_mfrc522.PCD_SetAntennaGain(MFRC522::RxGain_max);
+    g_mfrc522.PCD_WriteRegister(MFRC522::RFCfgReg, 0x08 | 0x07);
+    g_mfrc522.PCD_WriteRegister(MFRC522::ModWidthReg, RC522_MOD_WIDTH);
+    g_mfrc522.PCD_WriteRegister(MFRC522::DemodReg, 0x4D);
+    g_mfrc522.PCD_WriteRegister(MFRC522::TxControlReg, 0x83);
     delay(SPI_STABILIZE_DELAY_MS);
     
     return true;

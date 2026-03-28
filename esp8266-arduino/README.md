@@ -1,4 +1,4 @@
-# OneTapGo ESP8266 NFC Writer 5.1.0
+# OneTapGo ESP8266 NFC Writer 5.1.1
 
 Firmware para ESP8266 com RC522, OLED SSD1306, MQTT e configuracao de Wi-Fi local/remota.
 
@@ -137,7 +137,7 @@ Topico legado:
 
 - `onetapgo/{deviceId}/debug`
   - era usado por versoes antigas para flags operacionais
-  - no firmware atual `5.1.0` nao ha publish dedicado nesse topico; flags como `set_debug` sao refletidas em `/status`
+  - no firmware atual `5.1.1` nao ha publish dedicado nesse topico; flags como `set_debug` sao refletidas em `/status`
 
 Comandos suportados em `/command`:
 

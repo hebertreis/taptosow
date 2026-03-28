@@ -25,6 +25,7 @@ public:
 
     byte getFirmwareVersion() const { return _firmwareVersion; }
     bool isConnected() const { return _initialized; }
+    String getLastUid() const;
 
 private:
     bool _initialized = false;

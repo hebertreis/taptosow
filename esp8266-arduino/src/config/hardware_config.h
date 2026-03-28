@@ -68,7 +68,7 @@
 // ============================================================================
 // Timing Configuration
 // ============================================================================
-#define NFC_POLL_INTERVAL_MS    120   // NFC polling interval (120ms)
+#define NFC_POLL_INTERVAL_MS    200   // NFC polling interval (200ms for better reliability)
 #define LCD_UPDATE_INTERVAL_MS  500   // LCD update interval when idle
 #define LCD_HOLD_INTERVAL_MS    2000  // LCD hold time for messages
 #define NFC_ACTIVITY_TIMEOUT_MS 5000  // NFC operation timeout
