@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <SPI.h>
+#include <MifareClassic.h>
 #include <MifareUltralight.h>
 #include <NdefMessage.h>
 #include <NdefRecord.h>
@@ -13,8 +14,11 @@ constexpr uint8_t kType2PageSize = 4;
 constexpr uint8_t kType2CcPage = 3;
 constexpr uint8_t kType2DataStartPage = 4;
 constexpr size_t kType2ReadBufferSize = 18;
+constexpr size_t kType2MaxReadBytes = NDEF_MAX_PAYLOAD_LEN + 16;
 constexpr uint8_t kType2WriteAttempts = 3;
 constexpr uint8_t kType2WriteRetryDelayMs = 8;
+constexpr uint8_t kType2ReadAttempts = 3;
+constexpr uint8_t kType2ReadRetryDelayMs = 10;
 constexpr uint8_t kTagSelectStabilizeDelayMs = 20;
 constexpr uint8_t kClassicSectorCount1K = 16;
 constexpr uint8_t kClassicFirstDataBlock = 4;
@@ -30,6 +34,18 @@ String bytesToHexString(const uint8_t* data, size_t length);
 
 bool isValidRc522Firmware(byte version) {
     return version == 0x91 || version == 0x92;
+}
+
+bool isClassicNdefCandidate(MFRC522::PICC_Type piccType) {
+    return piccType == MFRC522::PICC_TYPE_MIFARE_1K ||
+           piccType == MFRC522::PICC_TYPE_MIFARE_4K;
+}
+
+void configureRc522Rf() {
+    g_mfrc522.PCD_SetAntennaGain(MFRC522::RC522_ANTENNA_GAIN);
+    g_mfrc522.PCD_WriteRegister(MFRC522::RFCfgReg, RC522_RF_CONFIG);
+    g_mfrc522.PCD_WriteRegister(MFRC522::ModWidthReg, RC522_MOD_WIDTH);
+    g_mfrc522.PCD_WriteRegister(MFRC522::TxControlReg, 0x83);
 }
 
 const char* uriPrefixForCode(uint8_t code) {
@@ -165,6 +181,37 @@ bool writeType2PageWithRetry(uint8_t page,
     }
 
     setErrorMessage(error, label + " " + String(page) + ": " + statusCodeName(lastStatus));
+    return false;
+}
+
+bool readType2PageWithRetry(uint8_t page,
+                            byte* buffer,
+                            byte* bufferSize,
+                            String* error,
+                            const String& label) {
+    MFRC522::StatusCode lastStatus = MFRC522::STATUS_ERROR;
+
+    for (uint8_t attempt = 0; attempt < kType2ReadAttempts; ++attempt) {
+        if (attempt > 0 && !reselectCurrentTag("type2_read_retry")) {
+            lastStatus = MFRC522::STATUS_TIMEOUT;
+            delay(kType2ReadRetryDelayMs);
+            continue;
+        }
+
+        byte localSize = *bufferSize;
+        memset(buffer, 0, localSize);
+        lastStatus = g_mfrc522.MIFARE_Read(page, buffer, &localSize);
+        *bufferSize = localSize;
+
+        if (lastStatus == MFRC522::STATUS_OK && localSize >= 4) {
+            return true;
+        }
+
+        delay(kType2ReadRetryDelayMs);
+        yield();
+    }
+
+    setErrorMessage(error, label + ": " + statusCodeName(lastStatus));
     return false;
 }
 
@@ -325,6 +372,145 @@ String decodeUriPayload(const uint8_t* payload, size_t length) {
     return out;
 }
 
+bool decodeNdefUriRecord(const uint8_t* message, size_t messageLength, String& url) {
+    size_t cursor = 0;
+
+    while (cursor + 2 < messageLength) {
+        const uint8_t header = message[cursor++];
+        const bool shortRecord = (header & 0x10) != 0;
+        const bool hasIdLength = (header & 0x08) != 0;
+        const bool messageEnd = (header & 0x40) != 0;
+        const uint8_t tnf = header & 0x07;
+
+        const uint8_t typeLength = message[cursor++];
+        uint32_t payloadLength = 0;
+
+        if (shortRecord) {
+            if (cursor >= messageLength) {
+                return false;
+            }
+            payloadLength = message[cursor++];
+        } else {
+            if (cursor + 4 > messageLength) {
+                return false;
+            }
+            payloadLength = (static_cast<uint32_t>(message[cursor]) << 24) |
+                            (static_cast<uint32_t>(message[cursor + 1]) << 16) |
+                            (static_cast<uint32_t>(message[cursor + 2]) << 8) |
+                            static_cast<uint32_t>(message[cursor + 3]);
+            cursor += 4;
+        }
+
+        uint8_t idLength = 0;
+        if (hasIdLength) {
+            if (cursor >= messageLength) {
+                return false;
+            }
+            idLength = message[cursor++];
+        }
+
+        if (cursor + typeLength + idLength + payloadLength > messageLength) {
+            return false;
+        }
+
+        const uint8_t* type = &message[cursor];
+        cursor += typeLength;
+        cursor += idLength;
+
+        const uint8_t* payload = &message[cursor];
+        cursor += payloadLength;
+
+        if (tnf == NdefRecord::TNF_WELL_KNOWN &&
+            typeLength == 1 &&
+            type[0] == 'U' &&
+            payloadLength > 0) {
+            url = decodeUriPayload(payload, payloadLength);
+            return true;
+        }
+
+        if (messageEnd) {
+            break;
+        }
+    }
+
+    return false;
+}
+
+bool readType2UserMemory(uint16_t tagCapacity, uint8_t* buffer, size_t bufferSize, size_t& bytesRead) {
+    bytesRead = 0;
+    if (tagCapacity == 0 || buffer == nullptr || bufferSize == 0) {
+        return false;
+    }
+
+    const size_t maxToRead = min(static_cast<size_t>(tagCapacity), bufferSize);
+    for (uint8_t page = kType2DataStartPage; bytesRead < maxToRead; page += 4) {
+        byte readBuffer[kType2ReadBufferSize] = {0};
+        byte readSize = sizeof(readBuffer);
+        const MFRC522::StatusCode status = g_mfrc522.MIFARE_Read(page, readBuffer, &readSize);
+        if (status != MFRC522::STATUS_OK || readSize < 16) {
+            Serial.print(F("[NFC] Type2 read failed page="));
+            Serial.print(page);
+            Serial.print(F(" status="));
+            Serial.println(statusCodeName(status));
+            return false;
+        }
+
+        const size_t copyLen = min(static_cast<size_t>(16), maxToRead - bytesRead);
+        memcpy(buffer + bytesRead, readBuffer, copyLen);
+        bytesRead += copyLen;
+        yield();
+    }
+
+    return true;
+}
+
+bool parseType2NdefTlv(const uint8_t* data, size_t length, NfcCardInfo& card) {
+    size_t cursor = 0;
+
+    while (cursor < length) {
+        const uint8_t tlvType = data[cursor++];
+
+        if (tlvType == 0x00) {
+            continue;
+        }
+        if (tlvType == 0xFE) {
+            return true;
+        }
+
+        if (cursor >= length) {
+            return false;
+        }
+
+        uint16_t tlvLength = data[cursor++];
+        if (tlvLength == 0xFF) {
+            if (cursor + 2 > length) {
+                return false;
+            }
+            tlvLength = (static_cast<uint16_t>(data[cursor]) << 8) | data[cursor + 1];
+            cursor += 2;
+        }
+
+        if (cursor + tlvLength > length) {
+            return false;
+        }
+
+        if (tlvType == 0x03) {
+            card.hasNdef = tlvLength > 0;
+            if (card.hasNdef) {
+                String url;
+                if (decodeNdefUriRecord(data + cursor, tlvLength, url)) {
+                    card.ndefUrl = url;
+                }
+            }
+            return true;
+        }
+
+        cursor += tlvLength;
+    }
+
+    return true;
+}
+
 bool isSupportedUrl(const String& url) {
     if (url.length() == 0 || url.length() > NDEF_URI_MAX_LENGTH) {
         return false;
@@ -382,6 +568,22 @@ void describeType2ByCapacity(uint32_t capacityBytes, NfcCardInfo& card) {
     }
 }
 
+String unsupportedNdefTypeMessage(MFRC522::PICC_Type piccType) {
+    String message = "Unsupported NFC Forum NDEF card for RC522: ";
+    message += MFRC522::PICC_GetTypeName(piccType);
+
+    if (piccType == MFRC522::PICC_TYPE_ISO_14443_4 ||
+        piccType == MFRC522::PICC_TYPE_MIFARE_DESFIRE) {
+        message += ". Type 4 / DESFire NDEF requires ISO-DEP APDU support; use PN532 or another Type 4 capable reader.";
+    } else if (piccType == MFRC522::PICC_TYPE_ISO_18092) {
+        message += ". Type 3 / FeliCa is outside RC522 support.";
+    } else if (piccType == MFRC522::PICC_TYPE_MIFARE_PLUS) {
+        message += ". MIFARE Plus is only writable here when operating as Classic-compatible NDEF with known keys.";
+    }
+
+    return message;
+}
+
 } // namespace
 
 NfcManager g_nfcManager;
@@ -393,12 +595,7 @@ bool NfcManager::begin() {
     g_mfrc522.PCD_Init();
     delay(NFC_INIT_DELAY_MS);
 
-    g_mfrc522.PCD_SetAntennaGain(MFRC522::RxGain_max);
-
-    g_mfrc522.PCD_WriteRegister(MFRC522::RFCfgReg, 0x08 | 0x07);
-    g_mfrc522.PCD_WriteRegister(MFRC522::ModWidthReg, RC522_MOD_WIDTH);
-    g_mfrc522.PCD_WriteRegister(MFRC522::DemodReg, 0x4D);
-    g_mfrc522.PCD_WriteRegister(MFRC522::TxControlReg, 0x83);
+    configureRc522Rf();
 
     g_nfc.begin(false);
 
@@ -531,7 +728,7 @@ bool NfcManager::writeTag(const String& url,
     bool success = false;
     const MFRC522::PICC_Type piccType = g_mfrc522.PICC_GetType(g_mfrc522.uid.sak);
 
-    if (piccType == MFRC522::PICC_TYPE_MIFARE_1K) {
+    if (isClassicNdefCandidate(piccType)) {
         if (lockCard) {
             card.lockApplied = false;
             setErrorMessage(error, "Physical lock is not supported for MIFARE Classic cards");
@@ -543,7 +740,7 @@ bool NfcManager::writeTag(const String& url,
     } else if (piccType == MFRC522::PICC_TYPE_MIFARE_UL) {
         success = _writeType2Tag(url, card, lockCard, error);
     } else {
-        setErrorMessage(error, "Unsupported card type for NDEF writing");
+        setErrorMessage(error, unsupportedNdefTypeMessage(piccType));
     }
     haltTag();
     nfcReleaseLock();
@@ -570,7 +767,8 @@ bool NfcManager::_selectTag() {
     }
 
     if (lockWasHeld && hasSelectedTag()) {
-        return true;
+        g_mfrc522.PICC_HaltA();
+        delay(5);
     }
 
     g_mfrc522.PCD_StopCrypto1();
@@ -693,10 +891,30 @@ bool NfcManager::_readSelectedTag(NfcCardInfo& card, bool haltAfter) {
 
     _fillBaseCardInfo(card);
 
-    NfcTag tag = g_nfc.read();
-    card.formatted = tag.isFormatted();
     card.hasNdef = false;
     card.ndefUrl = "";
+
+    const MFRC522::PICC_Type piccType = g_mfrc522.PICC_GetType(g_mfrc522.uid.sak);
+    if (piccType == MFRC522::PICC_TYPE_MIFARE_UL) {
+        card.formatted = card.capacityBytes > 0;
+
+        uint8_t type2Data[kType2MaxReadBytes] = {0};
+        size_t bytesRead = 0;
+        if (readType2UserMemory(card.capacityBytes, type2Data, sizeof(type2Data), bytesRead)) {
+            parseType2NdefTlv(type2Data, bytesRead, card);
+        }
+
+        if (haltAfter) {
+            haltTag();
+        }
+
+        return true;
+    }
+
+    NfcTag tag = isClassicNdefCandidate(piccType)
+        ? MifareClassic(&g_mfrc522).read()
+        : g_nfc.read();
+    card.formatted = tag.isFormatted();
 
     if (tag.hasNdefMessage()) {
         NdefMessage message = tag.getNdefMessage();
@@ -727,29 +945,26 @@ bool NfcManager::_writeClassicTag(const String& url,
                                   String* error) {
     NdefMessage message;
     message.addUriRecord(url.c_str());
+    MifareClassic classicTag(&g_mfrc522);
 
     // Already-formatted Classic tags use NFC Forum keys, so re-formatting every
     // time breaks rewrites on cards that were previously prepared as NDEF.
-    if (g_nfc.write(message)) {
+    if (classicTag.write(message)) {
         return true;
     }
 
     Serial.println(F("[NFC] Classic direct write failed, attempting format"));
     reselectCurrentTag("classic_after_direct_write");
 
-    if (!g_nfc.format()) {
-        Serial.println(F("[NFC] Library format failed, attempting extended Classic format"));
-        reselectCurrentTag("classic_before_extended_format");
-        String customFormatError;
-        if (!writeClassicFormatLayout(&customFormatError)) {
-            setErrorMessage(error, "Failed to write NDEF URI to MIFARE Classic tag and failed to format card for NDEF: " + customFormatError);
-            return false;
-        }
+    String customFormatError;
+    if (!writeClassicFormatLayout(&customFormatError)) {
+        setErrorMessage(error, "Failed to write NDEF URI to MIFARE Classic tag and failed to format card for NDEF: " + customFormatError);
+        return false;
     }
 
     reselectCurrentTag("classic_before_final_write");
 
-    if (!g_nfc.write(message)) {
+    if (!classicTag.write(message)) {
         setErrorMessage(error, "Failed to write NDEF URI to MIFARE Classic tag after formatting");
         return false;
     }
@@ -763,12 +978,18 @@ bool NfcManager::_writeType2Tag(const String& url,
                                 String* error) {
     g_mfrc522.PCD_StopCrypto1();
 
+    if (!reselectCurrentTag("type2_before_write")) {
+        setErrorMessage(error, "Failed to reselect Type 2 tag before writing");
+        return false;
+    }
+
     byte ccReadBuffer[kType2ReadBufferSize] = {0};
     byte ccReadSize = sizeof(ccReadBuffer);
-    const MFRC522::StatusCode ccStatus = g_mfrc522.MIFARE_Read(kType2CcPage, ccReadBuffer, &ccReadSize);
-
-    if (ccStatus != MFRC522::STATUS_OK || ccReadSize < 4) {
-        setErrorMessage(error, "Failed to read Type 2 capability container: " + statusCodeName(ccStatus));
+    if (!readType2PageWithRetry(kType2CcPage,
+                                ccReadBuffer,
+                                &ccReadSize,
+                                error,
+                                "Failed to read Type 2 capability container")) {
         return false;
     }
 

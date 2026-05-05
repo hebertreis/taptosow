@@ -26,6 +26,7 @@ public:
     void showAdminOverlay(unsigned long duration = LCD_OVERLAY_DURATION_MS);
     void showTechnicalOverlay(unsigned long duration = 0);
     bool canUpdate();
+    void releaseBus();
 
     unsigned long getLastUpdateTime() { return _lastUpdate; }
 

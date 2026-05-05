@@ -141,19 +141,31 @@ bool nfcRequestLock() {
         : NFC_ACTIVITY_TIMEOUT_MS;
     g_system.locks.nfcLockUntil = millis() + holdMs;
     
-    // Small delay to ensure I2C is complete
+    // Ensure the shared OLED I2C pins are released before SPI takes over.
+    pinMode(OLED_SDA_PIN, INPUT);
+    pinMode(OLED_SCL_PIN, INPUT);
+    delay(LCD_TO_SPI_DELAY_MS);
     delayMicroseconds(I2C_TO_SPI_DELAY_US);
     
     // Re-assert SPI ownership on the shared pins before touching RC522.
     SPI.begin();
     g_mfrc522.PCD_Init();
-    g_mfrc522.PCD_SetAntennaGain(MFRC522::RxGain_max);
-    g_mfrc522.PCD_WriteRegister(MFRC522::RFCfgReg, 0x08 | 0x07);
+    g_mfrc522.PCD_SetAntennaGain(MFRC522::RC522_ANTENNA_GAIN);
+    g_mfrc522.PCD_WriteRegister(MFRC522::RFCfgReg, RC522_RF_CONFIG);
     g_mfrc522.PCD_WriteRegister(MFRC522::ModWidthReg, RC522_MOD_WIDTH);
-    g_mfrc522.PCD_WriteRegister(MFRC522::DemodReg, 0x4D);
     g_mfrc522.PCD_WriteRegister(MFRC522::TxControlReg, 0x83);
     delay(SPI_STABILIZE_DELAY_MS);
-    
+
+    // Diagnostic log to confirm RC522 registers after re-init
+    Serial.print(F("[NFC] Lock init done - RFCfgReg=0x"));
+    Serial.print(g_mfrc522.PCD_ReadRegister(MFRC522::RFCfgReg), HEX);
+    Serial.print(F(" TxControl=0x"));
+    Serial.print(g_mfrc522.PCD_ReadRegister(MFRC522::TxControlReg), HEX);
+    Serial.print(F(" Demod=0x"));
+    Serial.print(g_mfrc522.PCD_ReadRegister(MFRC522::DemodReg), HEX);
+    Serial.print(F(" Status=0x"));
+    Serial.println(g_mfrc522.PCD_ReadRegister(MFRC522::Status2Reg), HEX);
+
     return true;
 }
 

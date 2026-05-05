@@ -33,8 +33,8 @@
 // - SDA: GPIO 14 (D5) - shares with SPI SCK
 // - SCL: GPIO 12 (D6) - shares with SPI MISO
 
-// LCD is currently not part of the critical path. Keep it disabled until the
-// shared-bus wiring is revisited.
+// The HW-364A board shares the OLED I2C pins with the RC522 SPI bus. Keep LCD
+// updates sparse: render the screen, release I2C, then let NFC own the pins.
 #define LCD_ENABLED    1
 
 #define OLED_SDA_PIN   14  // D5 (GPIO 14) - shares with SPI SCK
@@ -77,7 +77,8 @@
 // SPI/I2C Coordination
 // ============================================================================
 // Time to wait after I2C transaction before SPI can be used
-#define I2C_TO_SPI_DELAY_US     50    // Microseconds
-#define SPI_STABILIZE_DELAY_MS  5     // Milliseconds for SPI to stabilize
+#define I2C_TO_SPI_DELAY_US     200   // Microseconds
+#define LCD_TO_SPI_DELAY_MS     80    // Milliseconds after OLED update before RC522 use
+#define SPI_STABILIZE_DELAY_MS  50    // Milliseconds for SPI/RC522 to stabilize after PCD_Init
 
 #endif // HARDWARE_CONFIG_H

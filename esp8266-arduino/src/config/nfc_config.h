@@ -37,19 +37,20 @@
 // ============================================================================
 // RC522 Antenna Gain
 // ============================================================================
-// Use maximum gain for better range
-#define RC522_ANTENNA_GAIN  RxGain_max
+// High gain improves range, but maximum gain can amplify noise on marginal
+// RC522 boards. 43dB is a more stable default for NTAG21x than 48dB.
+#define RC522_ANTENNA_GAIN  RxGain_43dB
 
 // ============================================================================
 // RC522 RF Configuration
 // ============================================================================
-// RxGain_48dB = maximum receiver gain (0x08 << 4)
-// Higher values = better range but more noise
-#define RC522_RF_CONFIG 0x08
+// RxGain_43dB = 0x06 << 4. Higher values = better range but more noise.
+#define RC522_RF_CONFIG 0x60
 
 // Modulation width for ISO14443A communication
-// Default is usually 25 (0x19), trying 26 for better compatibility
-#define RC522_MOD_WIDTH 26
+// Keep the MFRC522 library default (0x26). The previous decimal 26 (0x1A)
+// narrows modulation and can make NTAG213/215 Type 2 cards unreliable.
+#define RC522_MOD_WIDTH 0x26
 
 // ============================================================================
 // RC522 Detection Strategy
