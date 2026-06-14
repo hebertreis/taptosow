@@ -1,13 +1,9 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const { defineSecret } = require("firebase-functions/params");
-const { createHash, randomUUID, timingSafeEqual } = require('crypto');
+const { createHash, randomUUID } = require('crypto');
 const { PostHog } = require('posthog-node');
 const tls = require('tls');
-const fs = require('fs');
-const path = require('path');
 
 // CORS configuration for web requests
 const cors = require('cors')({ origin: true });
@@ -30,13 +26,9 @@ const coraClientId = defineSecret("CORA_CLIENT_ID");
 
 // 🔐 SECURE: Define PagBank secrets
 const pagbankToken = defineSecret("PAGBANK_TOKEN");
-const upstashRedisRestUrl = defineSecret("UPSTASH_REDIS_REST_URL");
-const upstashRedisRestToken = defineSecret("UPSTASH_REDIS_REST_TOKEN");
-const docsBasicAuthPassword = defineSecret("DOCS_BASIC_AUTH_PASSWORD");
 
 const CoraClient = require('./src/cora');
 const { seedTenants } = require('./src/seedTenants');
-const { generateTags, generateTagsBatch } = require('./src/generateTags');
 
 const PIX_WEBHOOK_PROXY_PREFIX = '/api/webhook-pix/';
 const PIX_WEBHOOK_PROXY_TARGET_ORIGIN = 'https://giving.onetapgo.site';
@@ -44,20 +36,8 @@ const PIX_WEBHOOK_PROXY_TIMEOUT_MS = 15000;
 const PIX_WEBHOOK_REDIS_CHANNEL = 'webhook-pix-events';
 const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY || process.env.POSTHOG_PROJECT_API_KEY || 'phc_Cmw1QqdkzzdWkgRuqRNze8vCGmnVnISDjazikU4x1In';
 const POSTHOG_HOST = process.env.POSTHOG_HOST || 'https://us.i.posthog.com';
-const REPORTING_SETTINGS_DOC_PATH = 'site_config/reporting_settings';
-const REPORTING_SETTINGS_CACHE_TTL_MS = 60 * 1000;
-const BRAZIL_REGION = 'southamerica-east1';
-const FIRESTORE_REGION = 'us-east1';
-const TAG_REDIRECT_REDIS_KEY_PREFIX = 'tag_redirect:';
-const TAG_REDIRECT_REDIS_TTL_SECONDS = 60 * 60 * 24 * 14;
-const TAG_SCAN_DELTA_REDIS_KEY_PREFIX = 'tag_scan_delta:';
-const TAG_SCAN_LAST_MS_REDIS_KEY_PREFIX = 'tag_scan_last_ms:';
-const TAG_SCAN_DIRTY_REDIS_SET_KEY = 'tag_scan_dirty_ids';
-const TAG_SCAN_FLUSH_BATCH_SIZE = 200;
-const DOCS_BASIC_AUTH_USERNAME = 'docs';
-const DOCS_ROUTE_PREFIX = '/docs/esp8266-arduino';
-const DOCS_BASE_DIR = path.join(__dirname, 'docs', 'esp8266-arduino');
-const TAG_REDIRECT_TIME_ZONE = 'America/Sao_Paulo';
+const POSTHOG_UI_HOST = process.env.POSTHOG_UI_HOST || 'https://us.posthog.com';
+const GTM_CONTAINER_ID = 'GTM-WSML9VGB';
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -82,89 +62,6 @@ const RESPONSE_HEADER_BLACKLIST = new Set([
 ]);
 
 let hasLoggedMissingPixWebhookRedisUrl = false;
-let reportingSettingsCache = {
-  expiresAt: 0,
-  value: null,
-};
-
-function getDocsContentType(filePath) {
-  const extension = path.extname(filePath).toLowerCase();
-  const contentTypes = {
-    '.html': 'text/html; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.js': 'application/javascript; charset=utf-8',
-    '.json': 'application/json; charset=utf-8',
-    '.xml': 'application/xml; charset=utf-8',
-    '.gz': 'application/gzip',
-    '.svg': 'image/svg+xml',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.ico': 'image/x-icon',
-    '.woff2': 'font/woff2',
-    '.woff': 'font/woff',
-    '.ttf': 'font/ttf',
-    '.map': 'application/json; charset=utf-8',
-  };
-
-  return contentTypes[extension] || 'application/octet-stream';
-}
-
-function secureCompareStrings(left, right) {
-  const leftBuffer = Buffer.from(String(left || ''), 'utf8');
-  const rightBuffer = Buffer.from(String(right || ''), 'utf8');
-
-  if (leftBuffer.length !== rightBuffer.length) {
-    return false;
-  }
-
-  return timingSafeEqual(leftBuffer, rightBuffer);
-}
-
-function parseBasicAuthorizationHeader(headerValue = '') {
-  if (!headerValue.startsWith('Basic ')) {
-    return null;
-  }
-
-  try {
-    const decoded = Buffer.from(headerValue.slice(6), 'base64').toString('utf8');
-    const separatorIndex = decoded.indexOf(':');
-
-    if (separatorIndex < 0) {
-      return null;
-    }
-
-    return {
-      username: decoded.slice(0, separatorIndex),
-      password: decoded.slice(separatorIndex + 1),
-    };
-  } catch (error) {
-    return null;
-  }
-}
-
-function resolveDocsFilePath(requestPath = '') {
-  let relativePath = String(requestPath || '/');
-
-  if (relativePath.startsWith(DOCS_ROUTE_PREFIX)) {
-    relativePath = relativePath.slice(DOCS_ROUTE_PREFIX.length) || '/';
-  }
-
-  if (!relativePath.startsWith('/')) {
-    relativePath = `/${relativePath}`;
-  }
-
-  const normalizedRelativePath = path.posix.normalize(relativePath);
-  const safeRelativePath = normalizedRelativePath === '/' ? '/index.html' : normalizedRelativePath;
-  const finalRelativePath = safeRelativePath.endsWith('/') ? `${safeRelativePath}index.html` : safeRelativePath;
-  const absolutePath = path.resolve(DOCS_BASE_DIR, `.${finalRelativePath}`);
-
-  if (!absolutePath.startsWith(DOCS_BASE_DIR)) {
-    return null;
-  }
-
-  return absolutePath;
-}
 
 function normalizeLookupValue(value = '') {
   return String(value)
@@ -183,858 +80,6 @@ function sanitizeTenantLookup(value = '') {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9-_]/g, '');
-}
-
-function buildCanonicalTagIdentity(...values) {
-  const canonicalValue = values
-    .map((value) => sanitizeTenantLookup(value))
-    .find(Boolean);
-
-  if (!canonicalValue) {
-    return null;
-  }
-
-  return {
-    tenant: canonicalValue,
-  };
-}
-
-function buildLegacyTagIdentityCleanup() {
-  return {
-    tenantId: admin.firestore.FieldValue.delete(),
-    slug: admin.firestore.FieldValue.delete(),
-    client_slug: admin.firestore.FieldValue.delete(),
-    clientSlug: admin.firestore.FieldValue.delete(),
-  };
-}
-
-function normalizeTagId(value = '') {
-  return String(value || '').trim();
-}
-
-function parseIgnoredTagIds(rawValue) {
-  if (Array.isArray(rawValue)) {
-    return Array.from(new Set(rawValue.map(normalizeTagId).filter(Boolean)));
-  }
-
-  return [];
-}
-
-function buildReportingSettings({ ignoredTagIds = [] } = {}) {
-  return {
-    ignoredTagIds: parseIgnoredTagIds(ignoredTagIds),
-  };
-}
-
-async function getReportingSettings(db, { forceRefresh = false } = {}) {
-  const now = Date.now();
-
-  if (!forceRefresh && reportingSettingsCache.value && reportingSettingsCache.expiresAt > now) {
-    return reportingSettingsCache.value;
-  }
-
-  let ignoredTagIds = [];
-
-  try {
-    const settingsDoc = await db.doc(REPORTING_SETTINGS_DOC_PATH).get();
-    ignoredTagIds = parseIgnoredTagIds(settingsDoc.data()?.ignoredTagIds || []);
-  } catch (error) {
-    logger.warn('Failed to load reporting settings from Firestore', {
-      error: error.message || error,
-    });
-  }
-
-  const value = buildReportingSettings({ ignoredTagIds });
-  reportingSettingsCache = {
-    expiresAt: now + REPORTING_SETTINGS_CACHE_TTL_MS,
-    value,
-  };
-
-  return value;
-}
-
-function clearReportingSettingsCache() {
-  reportingSettingsCache = {
-    expiresAt: 0,
-    value: null,
-  };
-}
-
-function isIgnoredTagForReporting(tagId, reportingSettings) {
-  if (!tagId) {
-    return false;
-  }
-
-  return reportingSettings.ignoredTagIds.includes(normalizeTagId(tagId));
-}
-
-function getUpstashRestConfig() {
-  const url = upstashRedisRestUrl.value() || process.env.UPSTASH_REDIS_REST_URL || '';
-  const token = upstashRedisRestToken.value() || process.env.UPSTASH_REDIS_REST_TOKEN || '';
-
-  return {
-    url: String(url || '').trim().replace(/\/+$/, ''),
-    token: String(token || '').trim(),
-  };
-}
-
-function getTagRedirectRedisKey(tagId) {
-  return `${TAG_REDIRECT_REDIS_KEY_PREFIX}${normalizeTagId(tagId)}`;
-}
-
-function getTagScanDeltaRedisKey(tagId) {
-  return `${TAG_SCAN_DELTA_REDIS_KEY_PREFIX}${normalizeTagId(tagId)}`;
-}
-
-function getTagScanLastMsRedisKey(tagId) {
-  return `${TAG_SCAN_LAST_MS_REDIS_KEY_PREFIX}${normalizeTagId(tagId)}`;
-}
-
-async function sendUpstashRestCommand(commandParts) {
-  const { url, token } = getUpstashRestConfig();
-
-  if (!url || !token) {
-    return { ok: false, skipped: true, error: 'Upstash REST credentials are not configured' };
-  }
-
-  const commandPath = commandParts.map((part) => encodeURIComponent(String(part))).join('/');
-  const response = await fetch(`${url}/${commandPath}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Upstash REST command failed with status ${response.status}`);
-  }
-
-  return response.json();
-}
-
-async function getTagRedirectCache(tagId) {
-  const key = getTagRedirectRedisKey(tagId);
-  const response = await sendUpstashRestCommand(['get', key]);
-  const rawValue = response?.result;
-
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    const payload = JSON.parse(rawValue);
-    const tenant = sanitizeTenantLookup(payload?.tenant || payload?.clientSlug || '');
-
-    return {
-      ...payload,
-      tenant: tenant || 'fallback',
-      clientSlug: tenant || payload?.clientSlug || 'fallback',
-    };
-  } catch (error) {
-    logger.warn('Invalid JSON payload found in tag redirect cache', { tagId });
-    return null;
-  }
-}
-
-async function setTagRedirectCache(tagId, payload) {
-  const key = getTagRedirectRedisKey(tagId);
-  await sendUpstashRestCommand([
-    'set',
-    key,
-    JSON.stringify(payload),
-    'EX',
-    TAG_REDIRECT_REDIS_TTL_SECONDS,
-  ]);
-}
-
-async function deleteTagRedirectCache(tagId) {
-  const key = getTagRedirectRedisKey(tagId);
-  await sendUpstashRestCommand(['del', key]);
-}
-
-async function enqueueTagScanMetric(tagId, occurredAt = new Date()) {
-  const normalizedTagId = normalizeTagId(tagId);
-  if (!normalizedTagId) {
-    return { queued: false, reason: 'missing_tag_id' };
-  }
-
-  const occurredAtMs = occurredAt instanceof Date ? occurredAt.getTime() : new Date(occurredAt).getTime();
-  if (!Number.isFinite(occurredAtMs)) {
-    return { queued: false, reason: 'invalid_timestamp' };
-  }
-
-  const response = await sendUpstashRestCommand([
-    'EVAL',
-    `
-local delta = redis.call('INCR', KEYS[1])
-local currentLastMs = tonumber(redis.call('GET', KEYS[2]) or '0')
-local nextLastMs = tonumber(ARGV[2]) or 0
-if nextLastMs > currentLastMs then
-  redis.call('SET', KEYS[2], ARGV[2])
-end
-redis.call('SADD', KEYS[3], ARGV[1])
-return {delta, redis.call('GET', KEYS[2])}
-    `.trim(),
-    '3',
-    getTagScanDeltaRedisKey(normalizedTagId),
-    getTagScanLastMsRedisKey(normalizedTagId),
-    TAG_SCAN_DIRTY_REDIS_SET_KEY,
-    normalizedTagId,
-    String(occurredAtMs),
-  ]);
-
-  const result = Array.isArray(response?.result) ? response.result : [];
-  return {
-    queued: true,
-    tagId: normalizedTagId,
-    pendingDelta: Number(result[0] || 0),
-    lastScanAtMs: Number(result[1] || occurredAtMs),
-  };
-}
-
-async function getDirtyTagScanIds() {
-  const response = await sendUpstashRestCommand(['SMEMBERS', TAG_SCAN_DIRTY_REDIS_SET_KEY]);
-  return Array.isArray(response?.result)
-    ? response.result.map(normalizeTagId).filter(Boolean)
-    : [];
-}
-
-async function getPendingTagScanMetric(tagId) {
-  const normalizedTagId = normalizeTagId(tagId);
-  if (!normalizedTagId) {
-    return null;
-  }
-
-  const [deltaResponse, lastMsResponse] = await Promise.all([
-    sendUpstashRestCommand(['GET', getTagScanDeltaRedisKey(normalizedTagId)]),
-    sendUpstashRestCommand(['GET', getTagScanLastMsRedisKey(normalizedTagId)]),
-  ]);
-
-  const pendingDelta = Number(deltaResponse?.result || 0);
-  const lastScanAtMs = Number(lastMsResponse?.result || 0);
-
-  if (pendingDelta <= 0 && lastScanAtMs <= 0) {
-    return null;
-  }
-
-  return {
-    tagId: normalizedTagId,
-    pendingDelta,
-    lastScanAtMs: lastScanAtMs > 0 ? lastScanAtMs : null,
-  };
-}
-
-async function acknowledgeFlushedTagScanMetric(tagId, { appliedDelta = 0, appliedLastScanAtMs = null } = {}) {
-  const normalizedTagId = normalizeTagId(tagId);
-  if (!normalizedTagId) {
-    return { acknowledged: false, reason: 'missing_tag_id' };
-  }
-
-  await sendUpstashRestCommand([
-    'EVAL',
-    `
-local currentDelta = tonumber(redis.call('GET', KEYS[1]) or '0')
-local appliedDelta = tonumber(ARGV[2]) or 0
-if currentDelta > 0 and appliedDelta > 0 then
-  local remainingDelta = currentDelta - appliedDelta
-  if remainingDelta > 0 then
-    redis.call('SET', KEYS[1], tostring(remainingDelta))
-  else
-    redis.call('DEL', KEYS[1])
-  end
-end
-
-local currentLastMs = redis.call('GET', KEYS[2])
-local appliedLastMs = tonumber(ARGV[3]) or 0
-if currentLastMs and appliedLastMs > 0 and tonumber(currentLastMs) <= appliedLastMs then
-  redis.call('DEL', KEYS[2])
-end
-
-if redis.call('EXISTS', KEYS[1]) == 0 and redis.call('EXISTS', KEYS[2]) == 0 then
-  redis.call('SREM', KEYS[3], ARGV[1])
-end
-
-return {redis.call('GET', KEYS[1]) or '0', redis.call('GET', KEYS[2]) or '0'}
-    `.trim(),
-    '3',
-    getTagScanDeltaRedisKey(normalizedTagId),
-    getTagScanLastMsRedisKey(normalizedTagId),
-    TAG_SCAN_DIRTY_REDIS_SET_KEY,
-    normalizedTagId,
-    String(appliedDelta),
-    String(appliedLastScanAtMs || 0),
-  ]);
-
-  return {
-    acknowledged: true,
-    tagId: normalizedTagId,
-  };
-}
-
-function getDirectTagRedirectUrl(data = {}) {
-  return [
-    data.redirect_url,
-    data.redirect_override,
-    data.target_url,
-    data.url,
-    data.redirectUrl
-  ].find((value) => typeof value === 'string' && value.trim().length > 0) || null;
-}
-
-function getTagSectorId(data = {}) {
-  return sanitizeSectorId(data.sector || data.sectorId || data.setor || '');
-}
-
-function getDirectSectorRedirectUrl(data = {}) {
-  return [
-    data.redirect_url,
-    data.redirectUrl,
-    data.target_url,
-    data.url,
-    data.fallbackUrl
-  ].find((value) => typeof value === 'string' && value.trim().length > 0) || null;
-}
-
-async function getFallbackRedirectUrl(db, caches = {}) {
-  if (typeof caches.fallbackUrl === 'string' && caches.fallbackUrl.trim()) {
-    return caches.fallbackUrl;
-  }
-
-  const fallbackDoc = await db.doc('site_config/fallback').get();
-  const fallbackUrl = fallbackDoc.exists && typeof fallbackDoc.data()?.url === 'string' && fallbackDoc.data().url.trim() ?
-    fallbackDoc.data().url.trim() :
-    '/';
-
-  caches.fallbackUrl = fallbackUrl;
-  return fallbackUrl;
-}
-
-async function getClientBaseUrl(db, tenant, caches = {}) {
-  if (!tenant) {
-    return null;
-  }
-
-  if (!caches.clientBaseUrls) {
-    caches.clientBaseUrls = new Map();
-  }
-
-  if (caches.clientBaseUrls.has(tenant)) {
-    return caches.clientBaseUrls.get(tenant);
-  }
-
-  const clientDoc = await db.collection('clients').doc(tenant).get();
-  const baseUrl = typeof clientDoc.data()?.base_url === 'string' && clientDoc.data().base_url.trim() ?
-    clientDoc.data().base_url.trim() :
-    null;
-
-  caches.clientBaseUrls.set(tenant, baseUrl);
-  return baseUrl;
-}
-
-function resolveTagTenant(data = {}) {
-  return buildCanonicalTagIdentity(
-    data.tenant,
-    data.tenantId,
-    data.slug,
-    data.client_slug,
-    data.clientSlug
-  )?.tenant || 'fallback';
-}
-
-async function buildTagRedirectPayloadFromSnapshot(db, tagDoc, { reportingSettings, caches = {} } = {}) {
-  if (!tagDoc.exists) {
-    return null;
-  }
-
-  const data = tagDoc.data() || {};
-  const tenant = resolveTagTenant(data);
-  const sector = getTagSectorId(data);
-  const directTargetUrl = getDirectTagRedirectUrl(data);
-  let destinationUrl = directTargetUrl;
-  let redirectSource = directTargetUrl ? 'tag_redirect_url' : 'fallback';
-
-  if (!destinationUrl && tenant && tenant !== 'fallback') {
-    const clientBaseUrl = await getClientBaseUrl(db, tenant, caches);
-    if (clientBaseUrl) {
-      destinationUrl = clientBaseUrl;
-      redirectSource = 'client_base_url';
-    }
-  }
-
-  if (!destinationUrl) {
-    destinationUrl = await getFallbackRedirectUrl(db, caches);
-    redirectSource = 'fallback';
-  }
-
-  return {
-    id: tagDoc.id,
-    tagFound: true,
-    tenant,
-    clientSlug: tenant,
-    sector: sector || null,
-    tagDestinationUrl: directTargetUrl || null,
-    destinationUrl,
-    redirectSource,
-    reportingIgnored: isIgnoredTagForReporting(tagDoc.id, reportingSettings || buildReportingSettings()),
-    status: typeof data.status === 'string' ? data.status : null,
-    updatedAt: parseFirestoreTimestamp(data.updated_at) || parseFirestoreTimestamp(data.updatedAt) || parseFirestoreTimestamp(data.createdAt),
-  };
-}
-
-async function syncTagSnapshotToRedis(db, tagDoc, { reportingSettings, caches = {} } = {}) {
-  if (!tagDoc.exists) {
-    await deleteTagRedirectCache(tagDoc.id);
-    return { deleted: true, tagId: tagDoc.id };
-  }
-
-  const payload = await buildTagRedirectPayloadFromSnapshot(db, tagDoc, { reportingSettings, caches });
-  await setTagRedirectCache(tagDoc.id, payload);
-  return { updated: true, tagId: tagDoc.id, payload };
-}
-
-function shouldEnableRedirectDebug(req) {
-  const debugValue = String(req.query?.debug || '').trim().toLowerCase();
-  return ['1', 'true', 'yes', 'on'].includes(debugValue);
-}
-
-function getRequestHeaderValue(req, name) {
-  const value = req.get(name);
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : '';
-}
-
-function buildRedirectDistinctId(req, { tagId, routeType, tenant }) {
-  const explicitId = getRequestHeaderValue(req, 'X-PostHog-Distinct-Id')
-    || getRequestHeaderValue(req, 'X-GA-Client-ID')
-    || String(req.query?.ph_distinct_id || '').trim()
-    || String(req.query?.distinct_id || '').trim()
-    || String(req.query?.cid || '').trim();
-
-  if (explicitId) {
-    return explicitId;
-  }
-
-  const fingerprintSource = [
-    tagId || 'auto',
-    routeType || 'unknown',
-    tenant || 'fallback',
-    req.ip || '',
-    getRequestHeaderValue(req, 'User-Agent'),
-    getRequestHeaderValue(req, 'Accept-Language'),
-    getRequestHeaderValue(req, 'X-Forwarded-For'),
-  ].join('|');
-
-  return `scan_${createHash('sha256').update(fingerprintSource).digest('hex').slice(0, 32)}`;
-}
-
-function buildRedirectPosthogProperties(req, {
-  tagId,
-  tenant,
-  sector,
-  destinationUrl,
-  redirectSource,
-  routeType,
-  status,
-  tagFound = false,
-  reportingIgnored = false,
-}) {
-  let redirectHost = '';
-  try {
-    redirectHost = new URL(destinationUrl).host;
-  } catch (error) {
-    redirectHost = '';
-  }
-
-  return {
-    event_origin: 'firebase_function',
-    route_type: routeType,
-    tag_id: tagId || 'auto_redirect',
-    tenant: tenant || 'fallback',
-    client_slug: tenant || 'fallback',
-    sector: sector || null,
-    redirect_source: redirectSource || 'fallback',
-    redirect_url: destinationUrl,
-    redirect_host: redirectHost,
-    status: typeof status === 'string' ? status : 'unknown',
-    tag_found: Boolean(tagFound),
-    reporting_ignored: Boolean(reportingIgnored),
-    request_path: getRedirectRequestPath(req),
-    request_host: getRequestHeaderValue(req, 'host') || req.hostname || '',
-    request_method: req.method,
-    user_agent: getRequestHeaderValue(req, 'User-Agent'),
-    referer: getRequestHeaderValue(req, 'Referer'),
-  };
-}
-
-async function sendRedirectPosthogEvent(req, context) {
-  if (!POSTHOG_API_KEY || context.reportingIgnored) {
-    return;
-  }
-
-  const posthog = new PostHog(POSTHOG_API_KEY, {
-    host: POSTHOG_HOST,
-    flushAt: 1,
-    flushInterval: 0,
-    requestTimeout: 3000,
-  });
-
-  try {
-    posthog.capture({
-      distinctId: buildRedirectDistinctId(req, {
-        tagId: context.tagId,
-        routeType: context.routeType,
-        tenant: context.tenant,
-      }),
-      event: 'redirect_scan',
-      properties: buildRedirectPosthogProperties(req, context),
-    });
-    await posthog._shutdown(3000);
-  } catch (error) {
-    logger.warn('Background PostHog redirect_scan failed', {
-      tagId: context.tagId,
-      error: error.message || error,
-    });
-  }
-}
-
-function createTimingCollector() {
-  const startedAt = process.hrtime.bigint();
-  const timings = [];
-
-  return {
-    start() {
-      return process.hrtime.bigint();
-    },
-    end(step, startedStepAt) {
-      const durationMs = Number(process.hrtime.bigint() - startedStepAt) / 1e6;
-      timings.push({ step, durationMs: Number(durationMs.toFixed(2)) });
-    },
-    applyHeaders(res) {
-      const totalMs = Number((Number(process.hrtime.bigint() - startedAt) / 1e6).toFixed(2));
-      const items = [...timings, { step: 'total', durationMs: totalMs }];
-
-      res.set('Server-Timing', items.map(({ step, durationMs }) => `${step};dur=${durationMs}`).join(', '));
-      res.set('X-OneTapGo-Debug-Timings', items.map(({ step, durationMs }) => `${step}=${durationMs}ms`).join('; '));
-    }
-  };
-}
-
-function appendTagRedirectParameters(url, tagId, campaign) {
-  if (!url) {
-    return url;
-  }
-
-  const trimmedUrl = String(url).trim();
-  if (!/^https?:\/\//i.test(trimmedUrl)) {
-    return trimmedUrl;
-  }
-
-  const parsed = new URL(trimmedUrl);
-  parsed.searchParams.set('utm_source', 'onetapgo');
-  parsed.searchParams.set('utm_medium', 'nfc');
-  parsed.searchParams.set('utm_campaign', campaign || 'fallback');
-  parsed.searchParams.set('utm_content', tagId || 'unknown');
-  parsed.searchParams.set('utm_timestamp', new Date().toISOString());
-  return parsed.toString();
-}
-
-function getZonedNowParts(date = new Date(), timeZone = TAG_REDIRECT_TIME_ZONE) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  const weekdayMap = {
-    Sun: 0,
-    Mon: 1,
-    Tue: 2,
-    Wed: 3,
-    Thu: 4,
-    Fri: 5,
-    Sat: 6,
-  };
-
-  return {
-    date: `${values.year}-${values.month}-${values.day}`,
-    weekday: weekdayMap[values.weekday] ?? 0,
-    minutes: Number(values.hour) * 60 + Number(values.minute),
-  };
-}
-
-function parseScheduleTime(value, fallback = 0) {
-  if (typeof value !== 'string' || !value.trim()) {
-    return fallback;
-  }
-
-  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) {
-    return fallback;
-  }
-
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-    return fallback;
-  }
-
-  return hour * 60 + minute;
-}
-
-function normalizeScheduleWeekday(value) {
-  if (typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= 6) {
-    return value;
-  }
-
-  const normalized = normalizeLookupValue(value);
-  const weekdayMap = {
-    sunday: 0,
-    sun: 0,
-    domingo: 0,
-    monday: 1,
-    mon: 1,
-    segunda: 1,
-    tuesday: 2,
-    tue: 2,
-    terca: 2,
-    quarta: 3,
-    wednesday: 3,
-    wed: 3,
-    quinta: 4,
-    thursday: 4,
-    thu: 4,
-    sexta: 5,
-    friday: 5,
-    fri: 5,
-    sabado: 6,
-    saturday: 6,
-    sat: 6,
-  };
-
-  if (/^[0-6]$/.test(normalized)) {
-    return Number(normalized);
-  }
-
-  return weekdayMap[normalized];
-}
-
-function getScheduleUrl(schedule = {}) {
-  return normalizeTenantTagUrl(schedule.url || schedule.redirectUrl || schedule.redirect_url || schedule.target_url);
-}
-
-function scheduleMatchesNow(schedule = {}, nowParts = getZonedNowParts(), index = 0) {
-  if (!schedule || schedule.active === false || schedule.enabled === false) {
-    return null;
-  }
-
-  const url = getScheduleUrl(schedule);
-  if (!url || !isValidHttpUrl(url)) {
-    return null;
-  }
-
-  const startTime = schedule.startTime || schedule.time || schedule.startsAtTime || '00:00';
-  const endTime = schedule.endTime || schedule.endsAtTime || null;
-  const startMinutes = parseScheduleTime(startTime, 0);
-  const endMinutes = endTime ? parseScheduleTime(endTime, 24 * 60 - 1) : null;
-
-  if (nowParts.minutes < startMinutes) {
-    return null;
-  }
-
-  if (endMinutes != null && nowParts.minutes > endMinutes) {
-    return null;
-  }
-
-  const date = typeof schedule.date === 'string' && schedule.date.trim() ?
-    schedule.date.trim() :
-    (typeof schedule.specificDate === 'string' && schedule.specificDate.trim() ? schedule.specificDate.trim() : null);
-
-  if (date) {
-    return date === nowParts.date ? {
-      type: 'date',
-      url,
-      startMinutes,
-      priority: Number.isFinite(Number(schedule.priority)) ? Number(schedule.priority) : 0,
-      index,
-      scheduleId: schedule.id || null,
-    } : null;
-  }
-
-  const rawDays = Array.isArray(schedule.daysOfWeek) ? schedule.daysOfWeek :
-    (Array.isArray(schedule.weekdays) ? schedule.weekdays : []);
-  const weekdays = rawDays
-    .map((day) => normalizeScheduleWeekday(day))
-    .filter((day) => Number.isInteger(day));
-
-  if (weekdays.length === 0 || !weekdays.includes(nowParts.weekday)) {
-    return null;
-  }
-
-  return {
-    type: 'weekly',
-    url,
-    startMinutes,
-    priority: Number.isFinite(Number(schedule.priority)) ? Number(schedule.priority) : 0,
-    index,
-    scheduleId: schedule.id || null,
-  };
-}
-
-function pickActiveSectorSchedule(schedules = [], now = new Date()) {
-  if (!Array.isArray(schedules) || schedules.length === 0) {
-    return null;
-  }
-
-  const nowParts = getZonedNowParts(now);
-  const matches = schedules
-    .map((schedule, index) => scheduleMatchesNow(schedule, nowParts, index))
-    .filter(Boolean);
-
-  if (matches.length === 0) {
-    return null;
-  }
-
-  matches.sort((left, right) => {
-    const typePriority = { date: 2, weekly: 1 };
-    if (typePriority[right.type] !== typePriority[left.type]) {
-      return typePriority[right.type] - typePriority[left.type];
-    }
-    if (right.priority !== left.priority) {
-      return right.priority - left.priority;
-    }
-    if (right.startMinutes !== left.startMinutes) {
-      return right.startMinutes - left.startMinutes;
-    }
-    return right.index - left.index;
-  });
-
-  return matches[0];
-}
-
-async function resolveSectorRedirect(db, payload, { caches = {}, now = new Date() } = {}) {
-  if (!payload?.tenant || !payload?.sector || payload.tenant === 'fallback') {
-    return null;
-  }
-
-  if (!caches.sectorRedirects) {
-    caches.sectorRedirects = new Map();
-  }
-
-  const cacheKey = `${payload.tenant}:${payload.sector}`;
-  let sectorData = caches.sectorRedirects.get(cacheKey);
-
-  if (!sectorData) {
-    const sectorDoc = await db
-      .collection('tenants')
-      .doc(payload.tenant)
-      .collection('sectors')
-      .doc(payload.sector)
-      .get();
-
-    if (!sectorDoc.exists) {
-      caches.sectorRedirects.set(cacheKey, { exists: false });
-      return null;
-    }
-
-    sectorData = { exists: true, ...sectorDoc.data() };
-    caches.sectorRedirects.set(cacheKey, sectorData);
-  }
-
-  if (!sectorData.exists || sectorData.active === false || sectorData.enabled === false) {
-    return null;
-  }
-
-  const activeSchedule = pickActiveSectorSchedule(sectorData.schedules, now);
-  if (activeSchedule) {
-    return {
-      destinationUrl: activeSchedule.url,
-      redirectSource: `sector_${activeSchedule.type}_schedule`,
-      scheduleId: activeSchedule.scheduleId,
-    };
-  }
-
-  const directUrl = getDirectSectorRedirectUrl(sectorData);
-  if (directUrl && isValidHttpUrl(directUrl)) {
-    return {
-      destinationUrl: directUrl,
-      redirectSource: 'sector_redirect_url',
-      scheduleId: null,
-    };
-  }
-
-  return null;
-}
-
-async function resolveFinalTagRedirectPayload(db, payload, { caches = {}, now = new Date() } = {}) {
-  const sectorRedirect = await resolveSectorRedirect(db, payload, { caches, now });
-  if (!sectorRedirect) {
-    return payload;
-  }
-
-  return {
-    ...payload,
-    destinationUrl: sectorRedirect.destinationUrl,
-    redirectSource: sectorRedirect.redirectSource,
-    sectorScheduleId: sectorRedirect.scheduleId,
-  };
-}
-
-function getRedirectRequestPath(req) {
-  const originalPath = String(req.originalUrl || '').split('?')[0];
-  if (originalPath) {
-    return originalPath;
-  }
-
-  return String(req.path || '');
-}
-
-function getLastPathSegment(pathValue = '') {
-  const parts = String(pathValue || '').split('/').filter(Boolean);
-  return parts.length > 0 ? parts[parts.length - 1] : '';
-}
-
-async function resolveTagRedirectFromFirestore(db, tagId, { reportingSettings, caches = {}, timings = null } = {}) {
-  const readStartedAt = timings ? timings.start() : null;
-  const tagDoc = await db.collection('tags').doc(tagId).get();
-  if (timings && readStartedAt) {
-    timings.end('firestore_get', readStartedAt);
-  }
-
-  if (!tagDoc.exists) {
-    return null;
-  }
-
-  const payloadStartedAt = timings ? timings.start() : null;
-  const payload = await buildTagRedirectPayloadFromSnapshot(db, tagDoc, { reportingSettings, caches });
-  if (timings && payloadStartedAt) {
-    timings.end('build_payload', payloadStartedAt);
-  }
-
-  const cacheSetStartedAt = timings ? timings.start() : null;
-  await setTagRedirectCache(tagId, payload);
-  if (timings && cacheSetStartedAt) {
-    timings.end('redis_set', cacheSetStartedAt);
-  }
-
-  return payload;
-}
-
-async function getAutoRedirectUrl(db, timings = null) {
-  const startedAt = timings ? timings.start() : null;
-  const doc = await db.doc('site_config/auto_redirect').get();
-  if (timings && startedAt) {
-    timings.end('auto_redirect_get', startedAt);
-  }
-
-  if (doc.exists && typeof doc.data()?.url === 'string' && doc.data().url.trim()) {
-    return doc.data().url.trim();
-  }
-
-  return '/';
 }
 
 function flattenFormValues(value, values = []) {
@@ -1227,9 +272,20 @@ function parseFirestoreTimestamp(value) {
 }
 
 function getTagListFilter(req) {
-  const value = sanitizeTenantLookup(req.query.tenant);
-  const sector = sanitizeSectorId(req.query.sector || req.query.setor || '');
-  return value ? { field: 'tenant', value, sector: sector || null } : null;
+  const candidates = [
+    ['tenant', req.query.tenant],
+    ['slug', req.query.slug],
+    ['client_slug', req.query.client_slug]
+  ];
+
+  for (const [field, rawValue] of candidates) {
+    const value = sanitizeTenantLookup(rawValue);
+    if (value) {
+      return { field, value };
+    }
+  }
+
+  return null;
 }
 
 function parseTagListLimit(rawValue) {
@@ -1280,8 +336,8 @@ function serializeTag(doc) {
     id: doc.id,
     uid: data.uid || null,
     tenant: data.tenant || null,
-    tenantId: data.tenantId || null,
-    sector: data.sector || data.sectorId || data.setor || null,
+    slug: data.slug || null,
+    client_slug: data.client_slug || null,
     status: data.status || null,
     redirect_url: data.redirect_url || null,
     redirect_override: data.redirect_override || null,
@@ -1298,20 +354,9 @@ function serializeTag(doc) {
   };
 }
 
-function tagMatchesSector(doc, sector) {
-  if (!sector) {
-    return true;
-  }
-
-  return getTagSectorId(doc.data() || {}) === sector;
-}
-
-function buildTagKpis(snapshot, filter, reportingSettings = buildReportingSettings()) {
+function buildTagKpis(snapshot, filter) {
   const statusBreakdown = {};
   const activeUrls = new Map();
-  const ignoredTagIds = new Set(reportingSettings.ignoredTagIds || []);
-  let ignoredTagsCount = 0;
-  let includedTags = 0;
   let totalScans = 0;
   let activeTags = 0;
   let inactiveTags = 0;
@@ -1323,16 +368,7 @@ function buildTagKpis(snapshot, filter, reportingSettings = buildReportingSettin
   let latestUpdateDate = null;
 
   snapshot.docs.forEach((doc) => {
-    if (ignoredTagIds.has(doc.id)) {
-      ignoredTagsCount += 1;
-      return;
-    }
-
     const data = doc.data();
-    if (!tagMatchesSector(doc, filter.sector)) {
-      return;
-    }
-
     const status = typeof data.status === 'string' && data.status.trim() ? data.status.trim().toLowerCase() : 'unknown';
     const scanCount = typeof data.scan_count === 'number' ? data.scan_count : 0;
     const redirectUrl = [
@@ -1349,7 +385,6 @@ function buildTagKpis(snapshot, filter, reportingSettings = buildReportingSettin
       data.createdAt
     ].find((value) => value && typeof value.toDate === 'function');
     const updatedAtDate = updatedAt ? updatedAt.toDate() : null;
-    includedTags += 1;
 
     statusBreakdown[status] = (statusBreakdown[status] || 0) + 1;
     totalScans += scanCount;
@@ -1387,10 +422,9 @@ function buildTagKpis(snapshot, filter, reportingSettings = buildReportingSettin
     filters: {
       field: filter.field,
       value: filter.value,
-      sector: filter.sector || null,
     },
     kpis: {
-      total_tags: includedTags,
+      total_tags: snapshot.size,
       active_tags: activeTags,
       inactive_tags: inactiveTags,
       tags_with_scans: tagsWithScans,
@@ -1398,10 +432,9 @@ function buildTagKpis(snapshot, filter, reportingSettings = buildReportingSettin
       tags_with_redirect: tagsWithRedirect,
       tags_without_redirect: tagsWithoutRedirect,
       total_scans: totalScans,
-      average_scans_per_tag: includedTags > 0 ? Number((totalScans / includedTags).toFixed(2)) : 0,
+      average_scans_per_tag: snapshot.size > 0 ? Number((totalScans / snapshot.size).toFixed(2)) : 0,
       latest_scan_at: latestScanDate ? latestScanDate.toISOString() : null,
       latest_updated_at: latestUpdateDate ? latestUpdateDate.toISOString() : null,
-      ignored_tags_count: ignoredTagsCount,
       status_breakdown: statusBreakdown,
       active_urls: Array.from(activeUrls.entries())
         .sort((left, right) => {
@@ -1422,7 +455,7 @@ async function listTags(req, res) {
   if (!filter) {
     return res.status(400).json({
       success: false,
-      error: 'tenant is required'
+      error: 'one of tenant, slug, or client_slug is required'
     });
   }
 
@@ -1451,14 +484,6 @@ async function listTags(req, res) {
       .orderBy(admin.firestore.FieldPath.documentId())
       .limit(limit + 1);
 
-    if (filter.sector) {
-      query = db.collection('tags')
-        .where(filter.field, '==', filter.value)
-        .where('sector', '==', filter.sector)
-        .orderBy(admin.firestore.FieldPath.documentId())
-        .limit(limit + 1);
-    }
-
     if (cursor) {
       query = query.startAfter(cursor);
     }
@@ -1473,7 +498,6 @@ async function listTags(req, res) {
       filters: {
         field: filter.field,
         value: filter.value,
-        sector: filter.sector || null,
         limit
       },
       count: pageDocs.length,
@@ -1498,7 +522,7 @@ async function getTagKpis(req, res) {
   if (!filter) {
     return res.status(400).json({
       success: false,
-      error: 'tenant is required'
+      error: 'one of tenant, slug, or client_slug is required'
     });
   }
 
@@ -1507,9 +531,8 @@ async function getTagKpis(req, res) {
     const snapshot = await db.collection('tags')
       .where(filter.field, '==', filter.value)
       .get();
-    const reportingSettings = await getReportingSettings(db);
 
-    return res.status(200).json(buildTagKpis(snapshot, filter, reportingSettings));
+    return res.status(200).json(buildTagKpis(snapshot, filter));
   } catch (error) {
     logger.error('Error fetching tag KPIs', error);
     return res.status(500).json({
@@ -2712,7 +1735,6 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
     const db = admin.firestore();
 
     try {
-    const reportingSettings = await getReportingSettings(db);
     const getHeader = (name) => {
         const value = req.get(name);
         return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
@@ -2763,7 +1785,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
         }, {});
     };
 
-    const buildDistinctId = ({ tagId, routeType, tenant }) => {
+    const buildDistinctId = ({ tagId, routeType, clientSlug }) => {
         const explicitId = getHeader('X-PostHog-Distinct-Id')
             || getHeader('X-GA-Client-ID')
             || toSerializableValue(req.query?.ph_distinct_id)
@@ -2777,7 +1799,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
         const fingerprintSource = [
             tagId || 'auto',
             routeType || 'unknown',
-            tenant || 'fallback',
+            clientSlug || 'fallback',
             req.ip || '',
             getHeader('User-Agent') || '',
             getHeader('Accept-Language') || '',
@@ -2789,15 +1811,14 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
 
     const buildScanContext = ({
         tagId,
-        tenant,
+        clientSlug,
         targetUrl,
         redirectSource,
         routeType,
         fallbackUsed = false,
         tagFound = false,
         tagData = {},
-        statusCode = 200,
-        reportingIgnored = false
+        statusCode = 200
     }) => {
         const host = getHeader('host') || req.hostname || 'onetapgo.site';
         const protocol = getHeader('x-forwarded-proto') || req.protocol || 'https';
@@ -2816,8 +1837,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
             event_origin: 'firebase_function',
             route_type: routeType,
             tag_id: tagId || 'auto_redirect',
-            tenant: tenant || 'fallback',
-            client_slug: tenant || 'fallback',
+            client_slug: clientSlug || 'fallback',
             redirect_source: redirectSource,
             redirect_url: resolvedDestination.toString(),
             redirect_host: resolvedDestination.host,
@@ -2846,12 +1866,11 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
             sec_ch_ua_mobile: getHeader('Sec-CH-UA-Mobile'),
             sec_ch_ua_platform: getHeader('Sec-CH-UA-Platform'),
             request_id: getHeader('Function-Execution-Id') || randomUUID(),
-            scan_medium: routeType === 'go_redirect' ? 'qr_or_link' : 'nfc_or_qrcode',
-            reporting_ignored: reportingIgnored
+            scan_medium: routeType === 'go_redirect' ? 'qr_or_link' : 'nfc_or_qrcode'
         };
 
         return {
-            distinctId: buildDistinctId({ tagId, routeType, tenant }),
+            distinctId: buildDistinctId({ tagId, routeType, clientSlug }),
             properties: {
                 ...properties,
                 ...queryEntries,
@@ -2917,14 +1936,6 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
             return;
         }
 
-        if (context.properties?.reporting_ignored === true) {
-            logger.info('PostHog redirect_scan skipped for ignored tag', {
-                tagId: context.properties?.tag_id,
-                routeType: context.properties?.route_type
-            });
-            return;
-        }
-
         const posthog = new PostHog(POSTHOG_API_KEY, {
             host: POSTHOG_HOST,
             flushAt: 1,
@@ -2952,11 +1963,23 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
     const renderRedirectPage = ({
         destinationUrl,
         message = 'Aguarde, estamos redirecionando voce...',
-        title = 'Redirecionando...'
+        title = 'Redirecionando...',
+        scanContext
     }) => {
         const escapedDestination = escapeHtml(destinationUrl);
         const escapedMessage = escapeHtml(message);
         const escapedTitle = escapeHtml(title);
+        const clientPayload = JSON.stringify({
+            distinctId: scanContext.distinctId,
+            event: 'redirect_scan_page_loaded',
+            properties: {
+                route_type: scanContext.properties.route_type,
+                tag_id: scanContext.properties.tag_id,
+                client_slug: scanContext.properties.client_slug,
+                redirect_url: scanContext.properties.redirect_url,
+                redirect_source: scanContext.properties.redirect_source
+            }
+        });
 
         return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -2964,21 +1987,42 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>${escapedTitle}</title>
-  <meta http-equiv="refresh" content="0;url=${escapedDestination}">
+  <meta http-equiv="refresh" content="1;url=${escapedDestination}">
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: 'onetapgo_redirect_interstitial',
+      route_type: ${JSON.stringify(scanContext.properties.route_type)},
+      tag_id: ${JSON.stringify(scanContext.properties.tag_id)},
+      client_slug: ${JSON.stringify(scanContext.properties.client_slug)},
+      redirect_source: ${JSON.stringify(scanContext.properties.redirect_source)},
+      redirect_url: ${JSON.stringify(scanContext.properties.redirect_url)}
+    });
+  </script>
+  <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':Date.now(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_CONTAINER_ID}');</script>
+  <script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog&&window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split('.');2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement('script')).type='text/javascript',p.crossOrigin='anonymous',p.async=!0,p.src=s.api_host.replace('.i.posthog.com','-assets.i.posthog.com')+'/static/array.js',(r=t.getElementsByTagName('script')[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a='posthog',u.people=u.people||[],u.toString=function(t){var e='posthog';return'posthog'!==a&&(e+='.'+a),t||(e+=' (stub)'),e},u.people.toString=function(){return u.toString(1)+'.people (stub)'},o='init capture identify setPersonProperties reset'.split(' '),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init(${JSON.stringify(POSTHOG_API_KEY)}, { api_host: ${JSON.stringify(POSTHOG_HOST)}, ui_host: ${JSON.stringify(POSTHOG_UI_HOST)}, autocapture: true });
+    try {
+      var payload = ${clientPayload};
+      posthog.capture(payload.event, payload.properties);
+    } catch (error) {}
+  </script>
   <style>
-    :root { color-scheme: light; --bg:#f7f7f5; --ink:#161616; --muted:#6a6a6a; --card:#ffffff; --line:#e8e8e3; }
+    :root { color-scheme: light; --bg:#f6f1e8; --ink:#1f2937; --muted:#6b7280; --card:#fffdf8; --accent:#c26a2d; }
     * { box-sizing: border-box; }
-    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:var(--bg); color:var(--ink); }
-    main { width:min(420px,100%); background:var(--card); border:1px solid var(--line); border-radius:20px; padding:28px 24px; text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.04); }
-    h1 { margin:0 0 10px; font-size:clamp(1.25rem,3vw,1.6rem); font-weight:600; letter-spacing:-.02em; }
-    p { margin:0; line-height:1.55; }
-    a { color:inherit; word-break:break-word; }
-    .spinner { width:28px; height:28px; margin:0 auto 16px; border-radius:999px; border:2px solid var(--line); border-top-color:var(--ink); animation:spin .7s linear infinite; }
-    .hint { margin-top:14px; color:var(--muted); font-size:.92rem; }
+    body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: radial-gradient(circle at top, #fffaf2 0%, var(--bg) 60%, #efe2cf 100%); color:var(--ink); }
+    main { width:min(560px,100%); background:var(--card); border:1px solid rgba(194,106,45,.15); border-radius:24px; padding:32px 28px; box-shadow:0 18px 50px rgba(31,41,55,.08); text-align:center; }
+    h1 { margin:0 0 12px; font-size:clamp(1.5rem,4vw,2rem); }
+    p { margin:0; line-height:1.6; }
+    a { color:var(--accent); word-break:break-word; }
+    .spinner { width:44px; height:44px; margin:0 auto 20px; border-radius:999px; border:4px solid rgba(194,106,45,.15); border-top-color:var(--accent); animation:spin .9s linear infinite; }
+    .hint { margin-top:16px; color:var(--muted); font-size:.95rem; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
+  <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${GTM_CONTAINER_ID}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
   <main>
     <div class="spinner" aria-hidden="true"></div>
     <h1>${escapedTitle}</h1>
@@ -2986,10 +2030,9 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
     <p class="hint">Se o redirecionamento nao acontecer automaticamente, acesse <a href="${escapedDestination}" rel="noopener noreferrer">${escapedDestination}</a>.</p>
   </main>
   <script>
-    window.location.replace(${JSON.stringify(destinationUrl)});
     setTimeout(function () {
       window.location.replace(${JSON.stringify(destinationUrl)});
-    }, 40);
+    }, 180);
   </script>
 </body>
 </html>`;
@@ -2998,42 +2041,36 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
     const respondWithTrackedRedirect = async ({
         destinationUrl,
         tagId,
-        tenant,
+        clientSlug,
         redirectSource,
         routeType,
         fallbackUsed = false,
         tagFound = false,
         tagData = {}
     }) => {
-        const redirectedUrl = addUtmParameters(destinationUrl, tagId, tenant);
-        const reportingIgnored = isIgnoredTagForReporting(tagId, reportingSettings);
+        const redirectedUrl = addUtmParameters(destinationUrl, tagId, clientSlug);
         const scanContext = buildScanContext({
             tagId,
-            tenant,
+            clientSlug,
             targetUrl: redirectedUrl,
             redirectSource,
             routeType,
             fallbackUsed,
             tagFound,
             tagData,
-            statusCode: 200,
-            reportingIgnored
+            statusCode: 200
         });
 
-        Promise.allSettled([
-            sendGa4Event(tagId || 'auto_redirect', tenant || 'fallback', req),
+        await Promise.allSettled([
+            sendGa4Event(tagId || 'auto_redirect', clientSlug || 'fallback', req),
             sendPosthogEvent(scanContext)
-        ]).catch((error) => {
-            logger.warn('Background redirect analytics failed', {
-                tagId,
-                error: error.message || error
-            });
-        });
+        ]);
 
         res.status(200).set('Content-Type', 'text/html; charset=utf-8');
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
         return res.send(renderRedirectPage({
-            destinationUrl: redirectedUrl
+            destinationUrl: redirectedUrl,
+            scanContext
         }));
     };
 
@@ -3075,16 +2112,8 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
             if (success && mode_executed === 'RECORDER') {
                 const deviceDoc = await deviceRef.get();
                 const client_slug = deviceDoc.data()?.config?.target_client_slug || "default";
-                const tagIdentity = buildCanonicalTagIdentity(client_slug) || buildCanonicalTagIdentity("default");
                 const tagRef = db.collection('tags').doc(uid);
-                batch.set(tagRef, {
-                    uid,
-                    ...tagIdentity,
-                    ...buildLegacyTagIdentityCleanup(),
-                    provisioned_by: device_id,
-                    provisioned_at: admin.firestore.FieldValue.serverTimestamp(),
-                    status: 'active'
-                }, { merge: true });
+                batch.set(tagRef, { uid, client_slug, provisioned_by: device_id, provisioned_at: admin.firestore.FieldValue.serverTimestamp(), status: 'active' }, { merge: true });
             }
             await batch.commit();
             return res.json({ success: true });
@@ -3106,7 +2135,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                         updated_at: admin.firestore.FieldValue.serverTimestamp()
                     });
 
-                    const tenant = resolveTagTenant(tagData);
+                    const clientSlug = tagData.tenant || tagData.slug || "fallback";
                     const targetUrl = [
                         tagData.redirect_url,
                         tagData.redirect_override,
@@ -3116,11 +2145,11 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                     ].find((value) => typeof value === 'string' && value.trim().length > 0);
 
                     if (targetUrl) {
-                        console.info(`Redirecting tag ${id} to URL: ${targetUrl} with tenant: ${tenant}`);
+                        console.info(`Redirecting tag ${id} to URL: ${targetUrl} with clientSlug: ${clientSlug}`);
                         return respondWithTrackedRedirect({
                             destinationUrl: targetUrl,
                             tagId: id,
-                            tenant,
+                            clientSlug,
                             redirectSource: 'tag_redirect_url',
                             routeType: 'tag_redirect',
                             tagFound: true,
@@ -3128,15 +2157,15 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                         });
                     }
 
-                    if (tenant && tenant !== "fallback") {
-                        const clientDoc = await db.collection('clients').doc(tenant).get();
+                    if (clientSlug && clientSlug !== "fallback") {
+                        const clientDoc = await db.collection('clients').doc(clientSlug).get();
                         const clientBaseUrl = clientDoc.data()?.base_url;
                         if (typeof clientBaseUrl === 'string' && clientBaseUrl.trim().length > 0) {
-                            console.info(`Redirecting tag ${id} to client's base URL: ${clientBaseUrl} with tenant: ${tenant}`);
+                            console.info(`Redirecting tag ${id} to client's base URL: ${clientBaseUrl} with clientSlug: ${clientSlug}`);
                             return respondWithTrackedRedirect({
                                 destinationUrl: clientBaseUrl,
                                 tagId: id,
-                                tenant,
+                                clientSlug,
                                 redirectSource: 'client_base_url',
                                 routeType: 'tag_redirect',
                                 tagFound: true,
@@ -3152,7 +2181,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 return respondWithTrackedRedirect({
                     destinationUrl: fallbackUrl,
                     tagId: id || 'unknown',
-                    tenant: 'fallback',
+                    clientSlug: 'fallback',
                     redirectSource: 'fallback',
                     routeType: 'tag_redirect',
                     fallbackUsed: true,
@@ -3167,7 +2196,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                     return respondWithTrackedRedirect({
                         destinationUrl: url,
                         tagId: 'auto_redirect',
-                        tenant: 'fallback',
+                        clientSlug: 'fallback',
                         redirectSource: 'auto_redirect',
                         routeType: 'auto_redirect',
                         tagFound: true,
@@ -3177,7 +2206,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 return respondWithTrackedRedirect({
                     destinationUrl: '/',
                     tagId: 'auto_redirect',
-                    tenant: 'fallback',
+                    clientSlug: 'fallback',
                     redirectSource: 'auto_redirect_fallback',
                     routeType: 'auto_redirect',
                     fallbackUsed: true,
@@ -3206,7 +2235,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 return respondWithTrackedRedirect({
                     destinationUrl: target_url,
                     tagId: uid,
-                    tenant: slug,
+                    clientSlug: slug,
                     redirectSource: tagData.redirect_override ? 'tag_redirect_override' : 'client_base_url',
                     routeType: 'go_redirect',
                     tagFound: true,
@@ -3218,7 +2247,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 return respondWithTrackedRedirect({
                     destinationUrl: target_url,
                     tagId: uid,
-                    tenant: slug,
+                    clientSlug: slug,
                     redirectSource: clientDoc.exists ? 'client_base_url' : 'go_fallback',
                     routeType: 'go_redirect',
                     fallbackUsed: !clientDoc.exists,
@@ -3438,22 +2467,22 @@ function isValidHttpUrl(value = '') {
 }
 
 async function fetchTagsByTenant(db, tenant) {
-  const snapshots = await Promise.all([
-    db.collection('tags').where('tenant', '==', tenant).get(),
-    db.collection('tags').where('tenantId', '==', tenant).get(),
-  ]);
-  const docsById = new Map();
+  const fieldNames = ['tenant', 'slug', 'client_slug'];
+  const snapshots = await Promise.all(
+    fieldNames.map((fieldName) => db.collection('tags').where(fieldName, '==', tenant).get())
+  );
+
+  const tagsById = new Map();
 
   snapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((doc) => docsById.set(doc.id, doc));
+    snapshot.docs.forEach((doc) => {
+      if (!tagsById.has(doc.id)) {
+        tagsById.set(doc.id, doc);
+      }
+    });
   });
 
-  return Array.from(docsById.values());
-}
-
-async function fetchTagsByTenantAndSector(db, tenant, sector) {
-  const docs = await fetchTagsByTenant(db, tenant);
-  return docs.filter((doc) => tagMatchesSector(doc, sector));
+  return Array.from(tagsById.values());
 }
 
 async function fetchTagsByIds(db, ids) {
@@ -3497,18 +2526,7 @@ async function updateTenantTagsInChunks({ db, tagDocs, payloadFactory }) {
   return updatedCount;
 }
 
-function getTagUrlUpdateField(rawField) {
-  const targetField = sanitizeAuditField(rawField || 'redirect_url') || 'redirect_url';
-  const allowedFields = new Set(['redirect_url', 'redirect_override', 'target_url', 'url', 'redirecturl']);
-
-  if (!allowedFields.has(targetField)) {
-    return null;
-  }
-
-  return targetField === 'redirecturl' ? 'redirectUrl' : targetField;
-}
-
-function buildRequestMetadata(req) {
+function buildTagRequestMetadata(req) {
   return {
     ipAddress: req.ip || null,
     userAgent: req.get('user-agent') || null,
@@ -3519,112 +2537,27 @@ function buildRequestMetadata(req) {
   };
 }
 
-function normalizeSectorSchedule(schedule = {}, index = 0) {
-  const url = getScheduleUrl(schedule);
-  const rawDate = typeof schedule.date === 'string' && schedule.date.trim() ?
-    schedule.date.trim() :
-    (typeof schedule.specificDate === 'string' && schedule.specificDate.trim() ? schedule.specificDate.trim() : null);
-  const rawDays = Array.isArray(schedule.daysOfWeek) ? schedule.daysOfWeek :
-    (Array.isArray(schedule.weekdays) ? schedule.weekdays : []);
-  const daysOfWeek = rawDays
-    .map((day) => normalizeScheduleWeekday(day))
-    .filter((day) => Number.isInteger(day));
-  const startTime = typeof schedule.startTime === 'string' && schedule.startTime.trim() ?
-    schedule.startTime.trim() :
-    (typeof schedule.time === 'string' && schedule.time.trim() ? schedule.time.trim() : '00:00');
-  const endTime = typeof schedule.endTime === 'string' && schedule.endTime.trim() ?
-    schedule.endTime.trim() :
-    null;
-  const id = typeof schedule.id === 'string' && schedule.id.trim() ?
-    sanitizeAuditField(schedule.id) :
-    `schedule_${index + 1}`;
+function tagBelongsToTenant(tagData = {}, tenant) {
+  const tenantAliases = [
+    tagData.tenant,
+    tagData.tenantId,
+    tagData.slug,
+    tagData.client_slug,
+    tagData.clientSlug,
+  ];
 
-  if (!url || !isValidHttpUrl(url)) {
-    return { error: `schedules[${index}].url must be a valid http or https URL` };
-  }
-
-  if (!rawDate && daysOfWeek.length === 0) {
-    return { error: `schedules[${index}] must include date or daysOfWeek` };
-  }
-
-  if (rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
-    return { error: `schedules[${index}].date must use YYYY-MM-DD` };
-  }
-
-  if (!/^\d{1,2}:\d{2}$/.test(startTime) || parseScheduleTime(startTime, -1) < 0) {
-    return { error: `schedules[${index}].startTime must use HH:mm` };
-  }
-
-  if (endTime && (!/^\d{1,2}:\d{2}$/.test(endTime) || parseScheduleTime(endTime, -1) < 0)) {
-    return { error: `schedules[${index}].endTime must use HH:mm` };
-  }
-
-  const normalized = {
-    id,
-    url,
-    active: schedule.active !== false && schedule.enabled !== false,
-    startTime,
-    priority: Number.isFinite(Number(schedule.priority)) ? Number(schedule.priority) : 0,
-  };
-
-  if (endTime) {
-    normalized.endTime = endTime;
-  }
-
-  if (rawDate) {
-    normalized.date = rawDate;
-    normalized.type = 'date';
-  } else {
-    normalized.daysOfWeek = Array.from(new Set(daysOfWeek)).sort((left, right) => left - right);
-    normalized.type = 'weekly';
-  }
-
-  return { schedule: normalized };
+  return tenantAliases.some((value) => sanitizeTenantLookup(value) === tenant);
 }
 
-function normalizeSectorSchedules(rawSchedules) {
-  if (rawSchedules == null) {
-    return { schedules: null };
+function getTagUrlUpdateField(rawField) {
+  const targetField = sanitizeAuditField(rawField || 'redirect_url') || 'redirect_url';
+  const allowedFields = new Set(['redirect_url', 'redirect_override', 'target_url', 'url', 'redirecturl']);
+
+  if (!allowedFields.has(targetField)) {
+    return null;
   }
 
-  if (!Array.isArray(rawSchedules)) {
-    return { error: 'schedules must be an array' };
-  }
-
-  const schedules = [];
-  for (let index = 0; index < rawSchedules.length; index += 1) {
-    const result = normalizeSectorSchedule(rawSchedules[index], index);
-    if (result.error) {
-      return { error: result.error };
-    }
-    schedules.push(result.schedule);
-  }
-
-  return { schedules };
-}
-
-function serializeSectorRedirect(doc, tagCount = null) {
-  const data = doc.data() || {};
-  const directUrl = getDirectSectorRedirectUrl(data);
-  const activeSchedule = pickActiveSectorSchedule(data.schedules);
-
-  return {
-    id: doc.id,
-    internal: doc.id,
-    name: data.name || null,
-    redirect_url: data.redirect_url || null,
-    redirectUrl: data.redirectUrl || null,
-    target_url: data.target_url || null,
-    url: data.url || null,
-    active: data.active !== false && data.enabled !== false,
-    schedules: Array.isArray(data.schedules) ? data.schedules : [],
-    activeDestinationUrl: activeSchedule?.url || directUrl || null,
-    activeRedirectSource: activeSchedule ? `sector_${activeSchedule.type}_schedule` : (directUrl ? 'sector_redirect_url' : null),
-    activeScheduleId: activeSchedule?.scheduleId || null,
-    tagCount,
-    updatedAt: parseFirestoreTimestamp(data.updatedAt) || parseFirestoreTimestamp(data.updated_at),
-    createdAt: parseFirestoreTimestamp(data.createdAt) || parseFirestoreTimestamp(data.created_at),
-  };
+  return targetField === 'redirecturl' ? 'redirectUrl' : targetField;
 }
 
 exports.updateTenantTagUrl = onRequest(
@@ -3644,7 +2577,7 @@ exports.updateTenantTagUrl = onRequest(
     }
 
     const db = admin.firestore();
-    const rawTenant = req.body?.tenant || req.query?.tenant;
+    const rawTenant = req.body?.tenant || req.body?.slug || req.query?.tenant || req.query?.slug;
     const tenant = sanitizeTenantLookup(rawTenant);
     const newUrl = normalizeTenantTagUrl(
       req.body?.newUrl || req.body?.url || req.body?.redirectUrl || req.query?.newUrl || req.query?.url
@@ -3713,7 +2646,6 @@ exports.updateTenantTagUrl = onRequest(
         tagDocs,
         payloadFactory: () => ({
           [normalizedTargetField]: newUrl,
-          ...buildLegacyTagIdentityCleanup(),
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }),
@@ -3858,7 +2790,6 @@ exports.updateTagUrlByIds = onRequest(
         tagDocs: foundDocs,
         payloadFactory: () => ({
           [normalizedTargetField]: newUrl,
-          ...buildLegacyTagIdentityCleanup(),
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }),
@@ -3929,13 +2860,19 @@ exports.assignTagSector = onRequest(
     }
 
     const db = admin.firestore();
-    const tenant = sanitizeTenantLookup(req.body?.tenant || req.body?.tenantId || req.body?.slug || req.body?.client_slug || req.body?.clientSlug);
+    const tenant = sanitizeTenantLookup(
+      req.body?.tenant ||
+      req.body?.tenantId ||
+      req.body?.slug ||
+      req.body?.client_slug ||
+      req.body?.clientSlug
+    );
     const ids = req.body?.ids;
     const sector = sanitizeSectorId(req.body?.sector || req.body?.setor);
     const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : null;
 
     if (!tenant) {
-      return res.status(400).json({ success: false, error: 'tenant is required' });
+      return res.status(400).json({ error: 'tenant is required' });
     }
 
     if (!Array.isArray(ids) || ids.length === 0) {
@@ -3947,21 +2884,14 @@ exports.assignTagSector = onRequest(
     }
 
     const auditRef = db.collection('tag_url_audits').doc();
-    const requestMetadata = buildRequestMetadata(req);
+    const requestMetadata = buildTagRequestMetadata(req);
 
     try {
       const { foundDocs, missingIds, requestedIds } = await fetchTagsByIds(db, ids);
-
-      // Filter tags that belong to the requested tenant
-      const tenantMatchedDocs = foundDocs.filter((doc) => {
-        const data = doc.data() || {};
-        return data.tenant === tenant || data.tenantId === tenant;
-      });
-
+      const tenantMatchedDocs = foundDocs.filter((tagDoc) => tagBelongsToTenant(tagDoc.data(), tenant));
       const tenantUnmatchedIds = foundDocs
-        .filter((doc) => !tenantMatchedDocs.includes(doc))
-        .map((doc) => doc.id);
-
+        .filter((tagDoc) => !tagBelongsToTenant(tagDoc.data(), tenant))
+        .map((tagDoc) => tagDoc.id);
       const allMissingIds = [...new Set([...missingIds, ...tenantUnmatchedIds])];
 
       if (tenantMatchedDocs.length === 0) {
@@ -3981,48 +2911,41 @@ exports.assignTagSector = onRequest(
         return res.status(404).json({
           success: false,
           error: 'No tags found for the provided ids and tenant',
+          tenant,
+          sector,
+          ids: requestedIds,
           missingIds: allMissingIds,
           auditId: auditRef.id,
         });
       }
 
-      // Update matched tags with sector
-      const chunkSize = 450;
-      let updatedCount = 0;
-
-      for (let index = 0; index < tenantMatchedDocs.length; index += chunkSize) {
-        const chunk = tenantMatchedDocs.slice(index, index + chunkSize);
-        const batch = db.batch();
-
-        chunk.forEach((tagDoc) => {
-          batch.set(tagDoc.ref, {
-            sector,
-            ...buildLegacyTagIdentityCleanup(),
-            updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-        });
-
-        await batch.commit();
-        updatedCount += chunk.length;
-      }
-
-      // Ensure sector document exists when name is provided
-      if (name) {
-        const sectorRef = db.collection('tenants').doc(tenant).collection('sectors').doc(sector);
-        const sectorBefore = await sectorRef.get();
-
-        const sectorPayload = {
-          name,
+      const updatedCount = await updateTenantTagsInChunks({
+        db,
+        tagDocs: tenantMatchedDocs,
+        payloadFactory: () => ({
+          sector,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
+        }),
+      });
 
-        if (!sectorBefore.exists) {
-          sectorPayload.createdAt = admin.firestore.FieldValue.serverTimestamp();
-        }
+      const sectorRef = db.collection('tenants').doc(tenant).collection('sectors').doc(sector);
+      const sectorSnapshot = await sectorRef.get();
+      const sectorPayload = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
 
-        await sectorRef.set(sectorPayload, { merge: true });
+      if (name) {
+        sectorPayload.name = name;
+      } else if (!sectorSnapshot.exists) {
+        sectorPayload.name = sector;
       }
+
+      if (!sectorSnapshot.exists) {
+        sectorPayload.createdAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+
+      await sectorRef.set(sectorPayload, { merge: true });
 
       await auditRef.set({
         action: 'assign_tag_sector',
@@ -4033,8 +2956,7 @@ exports.assignTagSector = onRequest(
         missingIds: allMissingIds,
         matchedTags: tenantMatchedDocs.length,
         updatedTags: updatedCount,
-        sampleTagIds: tenantMatchedDocs.slice(0, 100).map((doc) => doc.id),
-        nameUpdated: Boolean(name),
+        sampleTagIds: tenantMatchedDocs.slice(0, 100).map((tagDoc) => tagDoc.id),
         requestMetadata,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -4071,280 +2993,6 @@ exports.assignTagSector = onRequest(
     }
   }
 );
-
-async function listTagSectors(req, res) {
-  const db = admin.firestore();
-  const tenant = sanitizeTenantLookup(req.query.tenant || req.query.tenantId);
-  const sector = sanitizeSectorId(req.query.sector || req.query.setor || '');
-
-  if (!tenant) {
-    return res.status(400).json({ success: false, error: 'tenant is required' });
-  }
-
-  try {
-    const sectorsRef = db.collection('tenants').doc(tenant).collection('sectors');
-    const tagDocs = await fetchTagsByTenant(db, tenant);
-    const tagCountsBySector = new Map();
-
-    tagDocs.forEach((doc) => {
-      const tagSector = getTagSectorId(doc.data() || {});
-      if (tagSector) {
-        tagCountsBySector.set(tagSector, (tagCountsBySector.get(tagSector) || 0) + 1);
-      }
-    });
-
-    if (sector) {
-      const sectorDoc = await sectorsRef.doc(sector).get();
-      if (!sectorDoc.exists) {
-        return res.status(404).json({
-          success: false,
-          error: 'Sector not found',
-          tenant,
-          sector,
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        tenant,
-        sector: serializeSectorRedirect(sectorDoc, tagCountsBySector.get(sector) || 0),
-      });
-    }
-
-    const snapshot = await sectorsRef.get();
-    const sectors = snapshot.docs
-      .map((doc) => serializeSectorRedirect(doc, tagCountsBySector.get(doc.id) || 0))
-      .sort((left, right) => String(left.name || left.id).localeCompare(String(right.name || right.id)));
-
-    return res.status(200).json({
-      success: true,
-      tenant,
-      count: sectors.length,
-      sectors,
-    });
-  } catch (error) {
-    logger.error('Error listing tag sectors', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-    });
-  }
-}
-
-async function updateTagSectorRedirect(req, res) {
-  const db = admin.firestore();
-  const tenant = sanitizeTenantLookup(req.body?.tenant || req.body?.tenantId || req.query?.tenant || req.query?.tenantId);
-  const sector = sanitizeSectorId(req.body?.sector || req.body?.setor || req.query?.sector || req.query?.setor);
-  const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : null;
-  const newUrl = normalizeTenantTagUrl(
-    req.body?.newUrl || req.body?.url || req.body?.redirectUrl || req.query?.newUrl || req.query?.url
-  );
-  const rawSchedules = req.body?.schedules;
-  const schedulesResult = normalizeSectorSchedules(rawSchedules);
-  const requestMetadata = buildRequestMetadata(req);
-
-  if (!tenant) {
-    return res.status(400).json({ success: false, error: 'tenant is required' });
-  }
-
-  if (!sector) {
-    return res.status(400).json({ success: false, error: 'sector is required' });
-  }
-
-  if (newUrl && !isValidHttpUrl(newUrl)) {
-    return res.status(400).json({ success: false, error: 'newUrl must be a valid http or https URL' });
-  }
-
-  if (schedulesResult.error) {
-    return res.status(400).json({ success: false, error: schedulesResult.error });
-  }
-
-  if (!newUrl && schedulesResult.schedules == null && !name) {
-    return res.status(400).json({
-      success: false,
-      error: 'send newUrl, schedules, or name to update the sector',
-    });
-  }
-
-  const sectorRef = db.collection('tenants').doc(tenant).collection('sectors').doc(sector);
-  const auditRef = db.collection('tag_url_audits').doc();
-
-  try {
-    const beforeDoc = await sectorRef.get();
-    const payload = {
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    };
-
-    if (!beforeDoc.exists) {
-      payload.createdAt = admin.firestore.FieldValue.serverTimestamp();
-    }
-
-    if (name) {
-      payload.name = name;
-    }
-
-    if (newUrl) {
-      payload.redirect_url = newUrl;
-    }
-
-    if (schedulesResult.schedules != null) {
-      payload.schedules = schedulesResult.schedules;
-    }
-
-    await sectorRef.set(payload, { merge: true });
-
-    const afterDoc = await sectorRef.get();
-    const matchingTags = await fetchTagsByTenantAndSector(db, tenant, sector);
-
-    await auditRef.set({
-      action: 'update_sector_tag_redirect',
-      status: 'success',
-      tenant,
-      sector,
-      newUrl: newUrl || null,
-      schedulesUpdated: schedulesResult.schedules != null,
-      matchedTags: matchingTags.length,
-      previousValue: beforeDoc.exists ? getDirectSectorRedirectUrl(beforeDoc.data() || {}) : null,
-      requestMetadata,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    return res.status(beforeDoc.exists ? 200 : 201).json({
-      success: true,
-      tenant,
-      sector: serializeSectorRedirect(afterDoc, matchingTags.length),
-      matchedTags: matchingTags.length,
-      auditId: auditRef.id,
-    });
-  } catch (error) {
-    logger.error('Error updating tag sector redirect', error);
-
-    await auditRef.set({
-      action: 'update_sector_tag_redirect',
-      status: 'error',
-      tenant,
-      sector,
-      newUrl: newUrl || null,
-      error: error.message || 'Unknown error',
-      requestMetadata,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    return res.status(500).json({
-      success: false,
-      error: 'Internal Server Error',
-      auditId: auditRef.id,
-    });
-  }
-}
-
-exports.manageTagSectorRedirect = onRequest(
-  {
-    cors: true,
-    maxInstances: 2,
-  },
-  async (req, res) => {
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
-    }
-
-    if (req.method === 'GET') {
-      return listTagSectors(req, res);
-    }
-
-    if (req.method === 'POST') {
-      return updateTagSectorRedirect(req, res);
-    }
-
-    res.set('Allow', 'GET, POST, OPTIONS');
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-);
-
-async function getReportingIgnoredTags(req, res) {
-  try {
-    const db = admin.firestore();
-    const reportingSettings = await getReportingSettings(db, { forceRefresh: true });
-
-    return res.status(200).json({
-      success: true,
-      reporting: {
-        ignoredTagIds: reportingSettings.ignoredTagIds,
-        ignoredTagsCount: reportingSettings.ignoredTagIds.length,
-        firestoreDocumentPath: REPORTING_SETTINGS_DOC_PATH,
-      }
-    });
-  } catch (error) {
-    logger.error('Error fetching reporting ignored tags', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal Server Error'
-    });
-  }
-}
-
-async function updateReportingIgnoredTags(req, res) {
-  const mode = typeof req.body?.mode === 'string' && req.body.mode.trim() ? req.body.mode.trim().toLowerCase() : 'replace';
-  const rawIgnoredTagIds = req.body?.ignoredTagIds || req.body?.ids;
-  const ignoredTagIds = parseIgnoredTagIds(rawIgnoredTagIds);
-  const allowedModes = new Set(['replace', 'add', 'remove']);
-
-  if (!allowedModes.has(mode)) {
-    return res.status(400).json({
-      success: false,
-      error: 'mode must be one of: replace, add, remove'
-    });
-  }
-
-  if (!Array.isArray(rawIgnoredTagIds)) {
-    return res.status(400).json({
-      success: false,
-      error: 'ignoredTagIds must be an array'
-    });
-  }
-
-  try {
-    const db = admin.firestore();
-    const docRef = db.doc(REPORTING_SETTINGS_DOC_PATH);
-    const currentDoc = await docRef.get();
-    const currentIgnoredTagIds = parseIgnoredTagIds(currentDoc.data()?.ignoredTagIds || []);
-    let nextIgnoredTagIds;
-
-    if (mode === 'replace') {
-      nextIgnoredTagIds = ignoredTagIds;
-    } else if (mode === 'add') {
-      nextIgnoredTagIds = Array.from(new Set([...currentIgnoredTagIds, ...ignoredTagIds]));
-    } else {
-      const ignoredSet = new Set(ignoredTagIds);
-      nextIgnoredTagIds = currentIgnoredTagIds.filter((id) => !ignoredSet.has(id));
-    }
-
-    await docRef.set({
-      ignoredTagIds: nextIgnoredTagIds,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    }, { merge: true });
-
-    clearReportingSettingsCache();
-    const reportingSettings = await getReportingSettings(db, { forceRefresh: true });
-
-    return res.status(200).json({
-      success: true,
-      mode,
-      reporting: {
-        ignoredTagIds: reportingSettings.ignoredTagIds,
-        ignoredTagsCount: reportingSettings.ignoredTagIds.length,
-        firestoreDocumentPath: REPORTING_SETTINGS_DOC_PATH,
-      }
-    });
-  } catch (error) {
-    logger.error('Error updating reporting ignored tags', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal Server Error'
-    });
-  }
-}
 
 exports.upsertTenant = onRequest(
   {
@@ -4490,376 +3138,6 @@ exports.getTagKpis = onRequest(
   }
 );
 
-exports.manageReportingIgnoredTags = onRequest(
-  {
-    cors: true,
-    maxInstances: 2,
-  },
-  async (req, res) => {
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
-    }
-
-    if (req.method === 'GET') {
-      return getReportingIgnoredTags(req, res);
-    }
-
-    if (req.method === 'POST') {
-      return updateReportingIgnoredTags(req, res);
-    }
-
-    res.set('Allow', 'GET, POST, OPTIONS');
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
-);
-
-exports.tagRedirectBr = onRequest(
-  {
-    cors: true,
-    maxInstances: 20,
-    memory: "256MiB",
-    region: BRAZIL_REGION,
-    secrets: [upstashRedisRestUrl, upstashRedisRestToken],
-  },
-  async (req, res) => {
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
-    }
-
-    if (!['GET', 'HEAD'].includes(req.method)) {
-      res.set('Allow', 'GET, HEAD, OPTIONS');
-      return res.status(405).send('Method Not Allowed');
-    }
-
-    const debugEnabled = shouldEnableRedirectDebug(req);
-    const timings = createTimingCollector();
-    const db = admin.firestore();
-    const caches = {};
-
-    try {
-      const pathParts = getRedirectRequestPath(req).split('/').filter(Boolean);
-      const tagId = pathParts[1] || null;
-
-      if (!tagId) {
-        const destinationUrl = await getAutoRedirectUrl(db, debugEnabled ? timings : null);
-        if (debugEnabled) {
-          timings.applyHeaders(res);
-        }
-        return res.redirect(302, destinationUrl);
-      }
-
-      let payload = null;
-      const redisGetStartedAt = debugEnabled ? timings.start() : null;
-
-      try {
-        payload = await getTagRedirectCache(tagId);
-      } catch (error) {
-        logger.warn('Redis cache read failed for tag redirect', {
-          tagId,
-          error: error.message || error,
-        });
-      }
-
-      if (debugEnabled && redisGetStartedAt) {
-        timings.end('redis_get', redisGetStartedAt);
-      }
-
-      const cacheHasSectorMetadata = payload && Object.prototype.hasOwnProperty.call(payload, 'sector');
-
-      if (!payload || !cacheHasSectorMetadata) {
-        const reportingSettingsStartedAt = debugEnabled ? timings.start() : null;
-        const reportingSettings = await getReportingSettings(db);
-        if (debugEnabled && reportingSettingsStartedAt) {
-          timings.end('reporting_settings', reportingSettingsStartedAt);
-        }
-
-        payload = await resolveTagRedirectFromFirestore(db, tagId, {
-          reportingSettings,
-          caches,
-          timings: debugEnabled ? timings : null,
-        });
-      }
-
-      if (!payload) {
-        const fallbackStartedAt = debugEnabled ? timings.start() : null;
-        const fallbackUrl = await getFallbackRedirectUrl(db, caches);
-        if (debugEnabled && fallbackStartedAt) {
-          timings.end('fallback_get', fallbackStartedAt);
-          timings.applyHeaders(res);
-        }
-        return res.redirect(302, fallbackUrl);
-      }
-
-      payload = await resolveFinalTagRedirectPayload(db, payload, {
-        caches,
-      });
-
-      const finalDestinationUrl = appendTagRedirectParameters(payload.destinationUrl, tagId, payload.tenant);
-      const occurredAt = new Date();
-      const scanQueueStartedAt = debugEnabled ? timings.start() : null;
-      try {
-        await enqueueTagScanMetric(tagId, occurredAt);
-      } catch (error) {
-        logger.warn('Failed to enqueue tag scan metric', {
-          tagId,
-          error: error.message || error,
-        });
-      }
-      if (debugEnabled && scanQueueStartedAt) {
-        timings.end('redis_scan_enqueue', scanQueueStartedAt);
-        timings.applyHeaders(res);
-      }
-
-      Promise.allSettled([
-        sendRedirectPosthogEvent(req, {
-          tagId,
-          tenant: payload.tenant,
-          sector: payload.sector,
-          destinationUrl: finalDestinationUrl,
-          redirectSource: payload.redirectSource,
-          routeType: 'tag_redirect_br',
-          status: payload.status,
-          tagFound: payload.tagFound,
-          reportingIgnored: payload.reportingIgnored,
-        }),
-      ]).catch((error) => {
-        logger.warn('Background redirect promises failed', {
-          tagId,
-          error: error.message || error,
-        });
-      });
-
-      return res.redirect(302, finalDestinationUrl);
-    } catch (error) {
-      logger.error('tagRedirectBr failed', error);
-      if (debugEnabled) {
-        timings.applyHeaders(res);
-      }
-      return res.status(500).send('Internal Server Error');
-    }
-  }
-);
-
-exports.benchNode = onRequest(
-  {
-    cors: true,
-    maxInstances: 20,
-    memory: "256MiB",
-    region: BRAZIL_REGION,
-    secrets: [upstashRedisRestUrl, upstashRedisRestToken],
-  },
-  async (req, res) => {
-    if (req.method === 'OPTIONS') {
-      res.status(204).send('');
-      return;
-    }
-
-    if (!['GET', 'HEAD'].includes(req.method)) {
-      res.set('Allow', 'GET, HEAD, OPTIONS');
-      return res.status(405).send('Method Not Allowed');
-    }
-
-    const timings = createTimingCollector();
-    const tagId = normalizeTagId(getLastPathSegment(getRedirectRequestPath(req)));
-
-    if (!tagId) {
-      return res.status(400).json({ error: 'tagId is required' });
-    }
-
-    let payload = null;
-    const redisGetStartedAt = timings.start();
-
-    try {
-      payload = await getTagRedirectCache(tagId);
-    } catch (error) {
-      logger.warn('benchNode Redis cache read failed', {
-        tagId,
-        error: error.message || error,
-      });
-    }
-
-    timings.end('redis_get', redisGetStartedAt);
-
-    if (!payload || !payload.destinationUrl) {
-      timings.applyHeaders(res);
-      return res.status(404).json({ error: 'tag cache not found', tagId });
-    }
-
-    const destinationUrl = appendTagRedirectParameters(payload.destinationUrl, tagId, payload.tenant);
-    timings.applyHeaders(res);
-    return res.redirect(302, destinationUrl);
-  }
-);
-
-exports.flushTagScanMetrics = onSchedule(
-  {
-    schedule: '*/1 * * * *',
-    timeZone: 'America/Sao_Paulo',
-    region: BRAZIL_REGION,
-    memory: '512MiB',
-    maxInstances: 1,
-    secrets: [upstashRedisRestUrl, upstashRedisRestToken],
-  },
-  async () => {
-    const db = admin.firestore();
-    const dirtyTagIds = await getDirtyTagScanIds();
-
-    if (dirtyTagIds.length === 0) {
-      logger.info('flushTagScanMetrics found no pending tag scans');
-      return;
-    }
-
-    logger.info('flushTagScanMetrics started', { dirtyTagCount: dirtyTagIds.length });
-
-    let flushedTagCount = 0;
-    let skippedTagCount = 0;
-
-    for (let index = 0; index < dirtyTagIds.length; index += TAG_SCAN_FLUSH_BATCH_SIZE) {
-      const chunkIds = dirtyTagIds.slice(index, index + TAG_SCAN_FLUSH_BATCH_SIZE);
-      const metricSnapshots = await Promise.all(chunkIds.map(async (tagId) => {
-        try {
-          return await getPendingTagScanMetric(tagId);
-        } catch (error) {
-          logger.warn('Failed to read pending tag scan metric', {
-            tagId,
-            error: error.message || error,
-          });
-          return null;
-        }
-      }));
-
-      const batch = db.batch();
-      const acknowledgements = [];
-
-      metricSnapshots.forEach((metric) => {
-        if (!metric || metric.pendingDelta <= 0) {
-          skippedTagCount += 1;
-          return;
-        }
-
-        const updatePayload = {
-          scan_count: admin.firestore.FieldValue.increment(metric.pendingDelta),
-          updated_at: admin.firestore.FieldValue.serverTimestamp(),
-        };
-
-        if (metric.lastScanAtMs) {
-          updatePayload.last_scan_at = admin.firestore.Timestamp.fromMillis(metric.lastScanAtMs);
-        }
-
-        batch.update(db.collection('tags').doc(metric.tagId), updatePayload);
-        acknowledgements.push(metric);
-      });
-
-      if (acknowledgements.length === 0) {
-        continue;
-      }
-
-      try {
-        await batch.commit();
-      } catch (error) {
-        logger.error('flushTagScanMetrics batch commit failed', {
-          chunkSize: acknowledgements.length,
-          error: error.message || error,
-        });
-        continue;
-      }
-
-      await Promise.allSettled(acknowledgements.map(async (metric) => {
-        try {
-          await acknowledgeFlushedTagScanMetric(metric.tagId, {
-            appliedDelta: metric.pendingDelta,
-            appliedLastScanAtMs: metric.lastScanAtMs,
-          });
-          flushedTagCount += 1;
-        } catch (error) {
-          logger.warn('Failed to acknowledge flushed tag scan metric', {
-            tagId: metric.tagId,
-            error: error.message || error,
-          });
-        }
-      }));
-    }
-
-    logger.info('flushTagScanMetrics finished', {
-      dirtyTagCount: dirtyTagIds.length,
-      flushedTagCount,
-      skippedTagCount,
-    });
-  }
-);
-
-exports.syncTagRedirectCacheOnWrite = onDocumentWritten(
-  {
-    document: 'tags/{tagId}',
-    region: FIRESTORE_REGION,
-    secrets: [upstashRedisRestUrl, upstashRedisRestToken],
-    maxInstances: 10,
-  },
-  async (event) => {
-    const db = admin.firestore();
-    const reportingSettings = await getReportingSettings(db, { forceRefresh: true });
-    const afterSnapshot = event.data.after;
-
-    if (!afterSnapshot.exists) {
-      await deleteTagRedirectCache(event.params.tagId);
-      logger.info('Deleted tag redirect cache after Firestore delete', { tagId: event.params.tagId });
-      return;
-    }
-
-    await syncTagSnapshotToRedis(db, afterSnapshot, {
-      reportingSettings,
-      caches: {},
-    });
-
-    logger.info('Synchronized tag redirect cache from Firestore trigger', {
-      tagId: afterSnapshot.id,
-    });
-  }
-);
-
-exports.syncAllTagRedirectCaches = onSchedule(
-  {
-    schedule: 'every 12 hours',
-    timeZone: 'America/Sao_Paulo',
-    region: BRAZIL_REGION,
-    secrets: [upstashRedisRestUrl, upstashRedisRestToken],
-    maxInstances: 1,
-    memory: '512MiB',
-  },
-  async () => {
-    const db = admin.firestore();
-    const reportingSettings = await getReportingSettings(db, { forceRefresh: true });
-    const snapshot = await db.collection('tags').get();
-    const caches = {};
-    let updatedTags = 0;
-    let failedTags = 0;
-
-    for (const tagDoc of snapshot.docs) {
-      try {
-        await syncTagSnapshotToRedis(db, tagDoc, {
-          reportingSettings,
-          caches,
-        });
-        updatedTags += 1;
-      } catch (error) {
-        failedTags += 1;
-        logger.warn('Failed to synchronize tag during scheduled Redis refresh', {
-          tagId: tagDoc.id,
-          error: error.message || error,
-        });
-      }
-    }
-
-    logger.info('Completed scheduled Redis tag synchronization', {
-      totalTags: snapshot.size,
-      updatedTags,
-      failedTags,
-    });
-  }
-);
-
 exports.listTags = onRequest(
   {
     cors: true,
@@ -4879,49 +3157,3 @@ exports.listTags = onRequest(
     return listTags(req, res);
   }
 );
-
-exports.docsGuard = onRequest(
-  {
-    region: BRAZIL_REGION,
-    maxInstances: 5,
-    memory: '256MiB',
-    secrets: [docsBasicAuthPassword],
-  },
-  async (req, res) => {
-    if (req.method !== 'GET' && req.method !== 'HEAD') {
-      res.set('Allow', 'GET, HEAD');
-      return res.status(405).send('Method Not Allowed');
-    }
-
-    const credentials = parseBasicAuthorizationHeader(req.get('authorization') || '');
-    const expectedPassword = docsBasicAuthPassword.value() || '';
-    const isAuthorized = Boolean(
-      credentials &&
-      secureCompareStrings(credentials.username, DOCS_BASIC_AUTH_USERNAME) &&
-      secureCompareStrings(credentials.password, expectedPassword)
-    );
-
-    if (!isAuthorized) {
-      res.set('WWW-Authenticate', 'Basic realm="OneTapGo Docs", charset="UTF-8"');
-      res.set('Cache-Control', 'no-store');
-      return res.status(401).send('Authentication required');
-    }
-
-    const filePath = resolveDocsFilePath(req.path || req.originalUrl || '/');
-    if (!filePath || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
-      return res.status(404).send('Not found');
-    }
-
-    res.set('Cache-Control', 'private, max-age=300');
-    res.type(getDocsContentType(filePath));
-
-    if (req.method === 'HEAD') {
-      return res.status(200).end();
-    }
-
-    return res.sendFile(filePath);
-  }
-);
-
-exports.generateTags = generateTags;
-exports.generateTagsBatch = generateTagsBatch;

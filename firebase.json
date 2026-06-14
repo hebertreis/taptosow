@@ -24,20 +24,6 @@
     ],
     "rewrites": [
       {
-        "source": "/docs/esp8266-arduino",
-        "function": {
-          "functionId": "docsGuard",
-          "region": "southamerica-east1"
-        }
-      },
-      {
-        "source": "/docs/esp8266-arduino/**",
-        "function": {
-          "functionId": "docsGuard",
-          "region": "southamerica-east1"
-        }
-      },
-      {
         "source": "/admin",
         "destination": "/admin.html"
       },
@@ -47,10 +33,7 @@
       },
       {
         "source": "/a",
-        "function": {
-          "functionId": "tagRedirectBr",
-          "region": "southamerica-east1"
-        }
+        "function": "redirectAuto"
       },
       {
         "source": "/createCoraPixCharge",
@@ -75,10 +58,7 @@
       },
       {
         "source": "/a/**",
-        "function": {
-          "functionId": "tagRedirectBr",
-          "region": "southamerica-east1"
-        }
+        "function": "iotRouter"
       },
       {
         "source": "/createPagBankOrder",
@@ -117,14 +97,6 @@
         "function": "updateTagUrlByIds"
       },
       {
-        "source": "/api/tag-sectors",
-        "function": "manageTagSectorRedirect"
-      },
-      {
-        "source": "/api/tag-sectors/update-url",
-        "function": "manageTagSectorRedirect"
-      },
-      {
         "source": "/api/tags",
         "function": "listTags"
       },
@@ -135,31 +107,6 @@
       {
         "source": "/api/tags/assign-sector",
         "function": "assignTagSector"
-      },
-      {
-        "source": "/api/tags/reporting-settings",
-        "function": "manageReportingIgnoredTags"
-      },
-      {
-        "source": "/bench/node/**",
-        "function": {
-          "functionId": "benchNode",
-          "region": "southamerica-east1"
-        }
-      },
-      {
-        "source": "/bench/python/**",
-        "run": {
-          "serviceId": "bench-python",
-          "region": "southamerica-east1"
-        }
-      },
-      {
-        "source": "/bench/golang/**",
-        "run": {
-          "serviceId": "bench-golang",
-          "region": "southamerica-east1"
-        }
       },
       {
         "source": "**",
