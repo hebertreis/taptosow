@@ -338,6 +338,7 @@ function serializeTag(doc) {
     tenant: data.tenant || null,
     slug: data.slug || null,
     client_slug: data.client_slug || null,
+    sector: data.sector || null,
     status: data.status || null,
     redirect_url: data.redirect_url || null,
     redirect_override: data.redirect_override || null,
@@ -2135,6 +2136,30 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                         updated_at: admin.firestore.FieldValue.serverTimestamp()
                     });
 
+                    // Fire-and-forget scan webhook notification
+                    const scanWebhookUrl = process.env.TAG_SCAN_WEBHOOK_URL;
+                    if (scanWebhookUrl) {
+                      void fetch(scanWebhookUrl, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'x-onetapgo-event': 'tag.scan',
+                          ...(process.env.TAG_SCAN_WEBHOOK_SECRET
+                            ? { 'x-onetapgo-signature': process.env.TAG_SCAN_WEBHOOK_SECRET }
+                            : {}),
+                        },
+                        body: JSON.stringify({
+                          event: 'tag.scan',
+                          tagId: id,
+                          tenant: tagData.tenant || tagData.slug || 'unknown',
+                          sector: tagData.sector || null,
+                          scanCount: (typeof tagData.scan_count === 'number' ? tagData.scan_count : 0) + 1,
+                          scannedAt: new Date().toISOString(),
+                        }),
+                        signal: AbortSignal.timeout(4000),
+                      }).catch(() => null);
+                    }
+
                     const clientSlug = tagData.tenant || tagData.slug || "fallback";
                     const targetUrl = [
                         tagData.redirect_url,
@@ -2155,6 +2180,25 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                             tagFound: true,
                             tagData
                         });
+                    }
+
+                    // If tag belongs to a sector, try the sector's redirect URL
+                    const sector = tagData.sector;
+                    if (sector && clientSlug && clientSlug !== "fallback") {
+                        const sectorDoc = await db.collection('tenants').doc(clientSlug).collection('sectors').doc(sector).get();
+                        const sectorUrl = sectorDoc.exists ? sectorDoc.data()?.redirect_url : null;
+                        if (typeof sectorUrl === 'string' && sectorUrl.trim().length > 0) {
+                            console.info(`Redirecting tag ${id} to sector URL: ${sectorUrl} (tenant=${clientSlug}, sector=${sector})`);
+                            return respondWithTrackedRedirect({
+                                destinationUrl: sectorUrl,
+                                tagId: id,
+                                clientSlug,
+                                redirectSource: 'sector_redirect_url',
+                                routeType: 'tag_redirect',
+                                tagFound: true,
+                                tagData
+                            });
+                        }
                     }
 
                     if (clientSlug && clientSlug !== "fallback") {
@@ -2231,12 +2275,25 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                     updated_at: admin.firestore.FieldValue.serverTimestamp()
                 });
                 const clientDoc = await db.collection('clients').doc(slug).get();
-                target_url = tagData.redirect_override || clientDoc.data()?.base_url || '/';
+                let target_url = tagData.redirect_override;
+
+                if (!target_url && tagData.sector) {
+                    const sectorDoc = await db.collection('tenants').doc(slug).collection('sectors').doc(tagData.sector).get();
+                    const sectorUrl = sectorDoc.exists ? sectorDoc.data()?.redirect_url : null;
+                    if (sectorUrl) {
+                        target_url = sectorUrl;
+                    }
+                }
+
+                target_url = target_url || clientDoc.data()?.base_url || '/';
+                const redirectSource = tagData.redirect_override
+                    ? 'tag_redirect_override'
+                    : (target_url !== (clientDoc.data()?.base_url || '/') && target_url !== '/' ? 'sector_redirect_url' : 'client_base_url');
                 return respondWithTrackedRedirect({
                     destinationUrl: target_url,
                     tagId: uid,
                     clientSlug: slug,
-                    redirectSource: tagData.redirect_override ? 'tag_redirect_override' : 'client_base_url',
+                    redirectSource,
                     routeType: 'go_redirect',
                     tagFound: true,
                     tagData
@@ -3155,5 +3212,234 @@ exports.listTags = onRequest(
     }
 
     return listTags(req, res);
+  }
+);
+
+// List sectors for a tenant. Reads tenants/<slug>/sectors subcollection
+// and enriches with live tag counts from the tags collection.
+exports.listTagSectors = onRequest(
+  {
+    cors: true,
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.set('Allow', 'GET, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const tenant = sanitizeTenantLookup(
+      req.query.tenant || req.query.slug || req.query.client_slug
+    );
+
+    if (!tenant) {
+      return res.status(400).json({ success: false, error: 'tenant is required' });
+    }
+
+    try {
+      const db = admin.firestore();
+
+      const [sectorsSnapshot, tagsSnapshot] = await Promise.all([
+        db.collection('tenants').doc(tenant).collection('sectors').get(),
+        db.collection('tags').where('tenant', '==', tenant).get(),
+      ]);
+
+      // Build sector tag count index
+      const sectorTagCount = {};
+      tagsSnapshot.docs.forEach((doc) => {
+        const sector = doc.data().sector;
+        if (sector) {
+          sectorTagCount[sector] = (sectorTagCount[sector] || 0) + 1;
+        }
+      });
+
+      const sectors = sectorsSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          internal: doc.id,
+          name: data.name || doc.id,
+          redirect_url: data.redirect_url || null,
+          redirectUrl: data.redirect_url || null,
+          active_destination_url: data.redirect_url || null,
+          active_redirect_source: data.redirect_url ? 'sector_redirect_url' : null,
+          active_schedule_id: data.active_schedule_id || null,
+          active: data.active !== false,
+          schedules: Array.isArray(data.schedules) ? data.schedules : [],
+          tag_count: sectorTagCount[doc.id] !== undefined ? sectorTagCount[doc.id] : (data.tag_count || 0),
+          tagCount: sectorTagCount[doc.id] !== undefined ? sectorTagCount[doc.id] : (data.tag_count || 0),
+          created_at: parseFirestoreTimestamp(data.createdAt || data.created_at),
+          updated_at: parseFirestoreTimestamp(data.updatedAt || data.updated_at),
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        tenant,
+        count: sectors.length,
+        sectors,
+      });
+    } catch (error) {
+      logger.error('Error listing tag sectors:', error);
+      return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+  }
+);
+
+// Update redirect URL for all tags in a sector
+exports.updateSectorUrl = onRequest(
+  {
+    cors: true,
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const db = admin.firestore();
+    const tenant = sanitizeTenantLookup(req.body?.tenant || req.body?.slug);
+    const sector = sanitizeSectorId(req.body?.sector || req.body?.setor);
+    const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : null;
+    const newUrl = normalizeTenantTagUrl(req.body?.newUrl || req.body?.url || req.body?.redirectUrl || '');
+    const normalizedTargetField = getTagUrlUpdateField(req.body?.field || 'redirect_url');
+
+    if (!tenant) return res.status(400).json({ error: 'tenant is required' });
+    if (!sector) return res.status(400).json({ error: 'sector is required' });
+    if (!newUrl) return res.status(400).json({ error: 'newUrl is required' });
+    if (!isValidHttpUrl(newUrl)) return res.status(400).json({ error: 'newUrl must be a valid http or https URL' });
+    if (!normalizedTargetField) return res.status(400).json({ error: 'field must be one of: redirect_url, redirect_override, target_url, url, redirectUrl' });
+
+    const auditRef = db.collection('tag_url_audits').doc();
+    const requestMetadata = buildTagRequestMetadata(req);
+
+    try {
+      // Update all tags in this sector belonging to this tenant
+      const snapshot = await db.collection('tags')
+        .where('tenant', '==', tenant)
+        .where('sector', '==', sector)
+        .get();
+
+      const tagDocs = snapshot.docs;
+      let updatedCount = 0;
+
+      if (tagDocs.length > 0) {
+        updatedCount = await updateTenantTagsInChunks({
+          db,
+          tagDocs,
+          payloadFactory: () => ({
+            [normalizedTargetField]: newUrl,
+            updated_at: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }),
+        });
+      }
+
+      // Update sector document with new redirect_url
+      const sectorRef = db.collection('tenants').doc(tenant).collection('sectors').doc(sector);
+      const sectorPayload = {
+        redirect_url: newUrl,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      if (name) sectorPayload.name = name;
+
+      const sectorDoc = await sectorRef.get();
+      if (!sectorDoc.exists) {
+        sectorPayload.createdAt = admin.firestore.FieldValue.serverTimestamp();
+        sectorPayload.name = sectorPayload.name || sector;
+      }
+
+      await sectorRef.set(sectorPayload, { merge: true });
+
+      await auditRef.set({
+        action: 'update_sector_url',
+        status: 'success',
+        tenant,
+        sector,
+        newUrl,
+        targetField: normalizedTargetField,
+        matchedTags: tagDocs.length,
+        updatedTags: updatedCount,
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return res.status(200).json({
+        success: true,
+        tenant,
+        sector,
+        newUrl,
+        field: normalizedTargetField,
+        matchedTags: tagDocs.length,
+        updatedTags: updatedCount,
+        auditId: auditRef.id,
+      });
+    } catch (error) {
+      logger.error('Error updating sector URL:', error);
+      await auditRef.set({
+        action: 'update_sector_url',
+        status: 'error',
+        tenant,
+        sector,
+        newUrl,
+        error: error.message || 'Unknown error',
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return res.status(500).json({ success: false, error: 'Internal Server Error', auditId: auditRef.id });
+    }
+  }
+);
+
+// Webhook: notify external systems when a tag is scanned.
+// Called internally by iotRouter; also exposed as HTTP for testing.
+exports.notifyScanWebhook = onRequest(
+  {
+    cors: false,
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const webhookUrl = process.env.TAG_SCAN_WEBHOOK_URL;
+    if (!webhookUrl) {
+      return res.status(200).json({ skipped: true, reason: 'TAG_SCAN_WEBHOOK_URL not configured' });
+    }
+
+    try {
+      const payload = req.body;
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-onetapgo-event': 'tag.scan',
+          ...(process.env.TAG_SCAN_WEBHOOK_SECRET
+            ? { 'x-onetapgo-signature': process.env.TAG_SCAN_WEBHOOK_SECRET }
+            : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      return res.status(200).json({ success: true, status: response.status });
+    } catch (error) {
+      logger.error('notifyScanWebhook failed:', error.message);
+      return res.status(200).json({ success: false, error: error.message });
+    }
   }
 );

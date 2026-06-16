@@ -109,6 +109,14 @@
         "function": "assignTagSector"
       },
       {
+        "source": "/api/tag-sectors",
+        "function": "listTagSectors"
+      },
+      {
+        "source": "/api/tag-sectors/**",
+        "function": "listTagSectors"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
