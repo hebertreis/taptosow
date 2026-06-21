@@ -142,6 +142,7 @@ const HARDCODED_TENANTS = {
             { id: 'pastoral', label: 'Oferta Pastoral', value: 'pastoral', pixRegistrationRequired: true },
             { id: 'building', label: 'Reforma e Construção', value: 'building', pixRegistrationRequired: true },
             { id: 'guest', label: 'Oferta para Convidado', value: 'guest_speaker', pixRegistrationRequired: true },
+            { id: 'curso-ia', label: 'Curso IA com Propósito', value: 'ai_course', pixRegistrationRequired: true, minimumAmount: 1, description: 'IA com Propósito: Criando Agentes de IA para trabalho, estudos, negócios e ministério.', formUrl: 'https://forms.gle/XeKFYDhkd767sk317' },
             { id: 'other', label: 'Outro', value: 'other', pixRegistrationRequired: true }
         ],
         theme: {
