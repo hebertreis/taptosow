@@ -109,6 +109,14 @@
         "function": "assignTagSector"
       },
       {
+        "source": "/api/tags/remove-sector",
+        "function": "removeTagSector"
+      },
+      {
+        "source": "/api/tag-sectors/update-url",
+        "function": "updateSectorUrl"
+      },
+      {
         "source": "/api/tag-sectors",
         "function": "listTagSectors"
       },

@@ -2161,28 +2161,21 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                     }
 
                     const clientSlug = tagData.tenant || tagData.slug || "fallback";
-                    const targetUrl = [
-                        tagData.redirect_url,
-                        tagData.redirect_override,
-                        tagData.target_url,
-                        tagData.url,
-                        tagData.redirectUrl
-                    ].find((value) => typeof value === 'string' && value.trim().length > 0);
-
-                    if (targetUrl) {
-                        console.info(`Redirecting tag ${id} to URL: ${targetUrl} with clientSlug: ${clientSlug}`);
+                    const overrideUrl = typeof tagData.redirect_override === 'string'
+                        ? tagData.redirect_override.trim()
+                        : '';
+                    if (overrideUrl) {
                         return respondWithTrackedRedirect({
-                            destinationUrl: targetUrl,
+                            destinationUrl: overrideUrl,
                             tagId: id,
                             clientSlug,
-                            redirectSource: 'tag_redirect_url',
+                            redirectSource: 'tag_redirect_override',
                             routeType: 'tag_redirect',
                             tagFound: true,
                             tagData
                         });
                     }
 
-                    // If tag belongs to a sector, try the sector's redirect URL
                     const sector = tagData.sector;
                     if (sector && clientSlug && clientSlug !== "fallback") {
                         const sectorDoc = await db.collection('tenants').doc(clientSlug).collection('sectors').doc(sector).get();
@@ -2199,6 +2192,25 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                                 tagData
                             });
                         }
+                    }
+
+                    const targetUrl = [
+                        tagData.redirect_url,
+                        tagData.target_url,
+                        tagData.url,
+                        tagData.redirectUrl
+                    ].find((value) => typeof value === 'string' && value.trim().length > 0);
+
+                    if (targetUrl) {
+                        return respondWithTrackedRedirect({
+                            destinationUrl: targetUrl,
+                            tagId: id,
+                            clientSlug,
+                            redirectSource: 'tag_redirect_url',
+                            routeType: 'tag_redirect',
+                            tagFound: true,
+                            tagData
+                        });
                     }
 
                     if (clientSlug && clientSlug !== "fallback") {
@@ -2779,6 +2791,8 @@ exports.updateTagUrlByIds = onRequest(
 
     const db = admin.firestore();
     const ids = req.body?.ids;
+    const clearValue = req.body?.clear === true;
+    const tenant = sanitizeTenantLookup(req.body?.tenant || req.query?.tenant);
     const newUrl = normalizeTenantTagUrl(
       req.body?.newUrl || req.body?.url || req.body?.redirectUrl || req.query?.newUrl || req.query?.url
     );
@@ -2788,16 +2802,20 @@ exports.updateTagUrlByIds = onRequest(
       return res.status(400).json({ error: 'ids must be a non-empty array' });
     }
 
-    if (!newUrl) {
+    if (!clearValue && !newUrl) {
       return res.status(400).json({ error: 'newUrl is required' });
     }
 
-    if (!isValidHttpUrl(newUrl)) {
+    if (!clearValue && !isValidHttpUrl(newUrl)) {
       return res.status(400).json({ error: 'newUrl must be a valid http or https URL' });
     }
 
     if (!normalizedTargetField) {
       return res.status(400).json({ error: 'field must be one of: redirect_url, redirect_override, target_url, url, redirectUrl' });
+    }
+
+    if (clearValue && normalizedTargetField !== 'redirect_override') {
+      return res.status(400).json({ error: 'Only redirect_override can be cleared' });
     }
 
     const auditRef = db.collection('tag_url_audits').doc();
@@ -2811,7 +2829,15 @@ exports.updateTagUrlByIds = onRequest(
     };
 
     try {
-      const { foundDocs, missingIds, requestedIds } = await fetchTagsByIds(db, ids);
+      const fetched = await fetchTagsByIds(db, ids);
+      const requestedIds = fetched.requestedIds;
+      const foundDocs = tenant
+        ? fetched.foundDocs.filter((tagDoc) => tagBelongsToTenant(tagDoc.data(), tenant))
+        : fetched.foundDocs;
+      const foreignIds = tenant
+        ? fetched.foundDocs.filter((tagDoc) => !tagBelongsToTenant(tagDoc.data(), tenant)).map((tagDoc) => tagDoc.id)
+        : [];
+      const missingIds = [...new Set([...fetched.missingIds, ...foreignIds])];
 
       if (foundDocs.length === 0) {
         await auditRef.set({
@@ -2846,7 +2872,7 @@ exports.updateTagUrlByIds = onRequest(
         db,
         tagDocs: foundDocs,
         payloadFactory: () => ({
-          [normalizedTargetField]: newUrl,
+          [normalizedTargetField]: clearValue ? admin.firestore.FieldValue.delete() : newUrl,
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }),
@@ -2896,6 +2922,55 @@ exports.updateTagUrlByIds = onRequest(
         error: 'Internal Server Error',
         auditId: auditRef.id,
       });
+    }
+  }
+);
+
+exports.removeTagSector = onRequest(
+  { cors: true, maxInstances: 2 },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const tenant = sanitizeTenantLookup(req.body?.tenant);
+    const ids = req.body?.ids;
+    if (!tenant) return res.status(400).json({ error: 'tenant is required' });
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids must be a non-empty array' });
+    }
+
+    const db = admin.firestore();
+    const auditRef = db.collection('tag_url_audits').doc();
+    try {
+      const { foundDocs, missingIds, requestedIds } = await fetchTagsByIds(db, ids);
+      const matched = foundDocs.filter((doc) => tagBelongsToTenant(doc.data(), tenant));
+      const foreignIds = foundDocs.filter((doc) => !tagBelongsToTenant(doc.data(), tenant)).map((doc) => doc.id);
+      const allMissingIds = [...new Set([...missingIds, ...foreignIds])];
+      if (matched.length === 0) {
+        return res.status(404).json({ success: false, error: 'No tags found for the provided ids and tenant', missingIds: allMissingIds });
+      }
+      const updatedTags = await updateTenantTagsInChunks({
+        db,
+        tagDocs: matched,
+        payloadFactory: () => ({
+          sector: admin.firestore.FieldValue.delete(),
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }),
+      });
+      await auditRef.set({
+        action: 'remove_tag_sector', status: 'success', tenant, requestedIds,
+        missingIds: allMissingIds, matchedTags: matched.length, updatedTags,
+        requestMetadata: buildTagRequestMetadata(req),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true, tenant, missingIds: allMissingIds, matchedTags: matched.length, updatedTags, auditId: auditRef.id });
+    } catch (error) {
+      logger.error('Error removing tag sector:', error);
+      return res.status(500).json({ success: false, error: 'Internal Server Error', auditId: auditRef.id });
     }
   }
 );
@@ -3291,7 +3366,8 @@ exports.listTagSectors = onRequest(
   }
 );
 
-// Update redirect URL for all tags in a sector
+// Update redirect URL for a sector document only.
+// Tags resolve the sector URL at scan time via iotRouter.
 exports.updateSectorUrl = onRequest(
   {
     cors: true,
@@ -3313,40 +3389,16 @@ exports.updateSectorUrl = onRequest(
     const sector = sanitizeSectorId(req.body?.sector || req.body?.setor);
     const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : null;
     const newUrl = normalizeTenantTagUrl(req.body?.newUrl || req.body?.url || req.body?.redirectUrl || '');
-    const normalizedTargetField = getTagUrlUpdateField(req.body?.field || 'redirect_url');
 
     if (!tenant) return res.status(400).json({ error: 'tenant is required' });
     if (!sector) return res.status(400).json({ error: 'sector is required' });
     if (!newUrl) return res.status(400).json({ error: 'newUrl is required' });
     if (!isValidHttpUrl(newUrl)) return res.status(400).json({ error: 'newUrl must be a valid http or https URL' });
-    if (!normalizedTargetField) return res.status(400).json({ error: 'field must be one of: redirect_url, redirect_override, target_url, url, redirectUrl' });
 
     const auditRef = db.collection('tag_url_audits').doc();
     const requestMetadata = buildTagRequestMetadata(req);
 
     try {
-      // Update all tags in this sector belonging to this tenant
-      const snapshot = await db.collection('tags')
-        .where('tenant', '==', tenant)
-        .where('sector', '==', sector)
-        .get();
-
-      const tagDocs = snapshot.docs;
-      let updatedCount = 0;
-
-      if (tagDocs.length > 0) {
-        updatedCount = await updateTenantTagsInChunks({
-          db,
-          tagDocs,
-          payloadFactory: () => ({
-            [normalizedTargetField]: newUrl,
-            updated_at: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }),
-        });
-      }
-
-      // Update sector document with new redirect_url
       const sectorRef = db.collection('tenants').doc(tenant).collection('sectors').doc(sector);
       const sectorPayload = {
         redirect_url: newUrl,
@@ -3369,9 +3421,6 @@ exports.updateSectorUrl = onRequest(
         tenant,
         sector,
         newUrl,
-        targetField: normalizedTargetField,
-        matchedTags: tagDocs.length,
-        updatedTags: updatedCount,
         requestMetadata,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -3381,9 +3430,6 @@ exports.updateSectorUrl = onRequest(
         tenant,
         sector,
         newUrl,
-        field: normalizedTargetField,
-        matchedTags: tagDocs.length,
-        updatedTags: updatedCount,
         auditId: auditRef.id,
       });
     } catch (error) {
