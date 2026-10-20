@@ -29,6 +29,14 @@ const pagbankToken = defineSecret("PAGBANK_TOKEN");
 
 const CoraClient = require('./src/cora');
 const { seedTenants } = require('./src/seedTenants');
+const {
+    parseVisitorId,
+    newVisitorId,
+    buildVisitorCookie,
+    isVisitorIdEnabled,
+    isTransparentRedirectEnabled,
+    withTimeout,
+} = require('./src/scanRedirect');
 
 const PIX_WEBHOOK_PROXY_PREFIX = '/api/webhook-pix/';
 const PIX_WEBHOOK_PROXY_TARGET_ORIGIN = 'https://giving.onetapgo.site';
@@ -37,6 +45,10 @@ const PIX_WEBHOOK_REDIS_CHANNEL = 'webhook-pix-events';
 const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY || process.env.POSTHOG_PROJECT_API_KEY || 'phc_Cmw1QqdkzzdWkgRuqRNze8vCGmnVnISDjazikU4x1In';
 const POSTHOG_HOST = process.env.POSTHOG_HOST || 'https://us.i.posthog.com';
 const POSTHOG_UI_HOST = process.env.POSTHOG_UI_HOST || 'https://us.posthog.com';
+// Host do PostHog usado NO NAVEGADOR (página intermediária): o proxy próprio evita bloqueio por adblock.
+const POSTHOG_CLIENT_HOST = process.env.POSTHOG_CLIENT_HOST || 'https://p.onetapgo.site';
+// Teto de espera do envio de analytics no redirect transparente: o toque nunca espera mais que isso.
+const SCAN_ANALYTICS_TIMEOUT_MS = 800;
 const GTM_CONTAINER_ID = 'GTM-WSML9VGB';
 
 const HOP_BY_HOP_HEADERS = new Set([
@@ -1741,6 +1753,11 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
         return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
     };
 
+    // Id do visitante (cookie __session). Desligado por padrão (SCAN_VISITOR_ID=true liga).
+    const visitorIdEnabled = isVisitorIdEnabled();
+    const cookieVisitorId = visitorIdEnabled ? parseVisitorId(req.headers.cookie) : null;
+    const visitorId = visitorIdEnabled ? (cookieVisitorId || newVisitorId()) : null;
+
     const escapeHtml = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -1795,6 +1812,12 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
 
         if (explicitId) {
             return explicitId;
+        }
+
+        // Id estável do navegador (cookie): scans repetidos e o alias feito pelos produtos
+        // passam a cair na MESMA pessoa do PostHog, em vez de um hash por scan.
+        if (visitorId) {
+            return visitorId;
         }
 
         const fingerprintSource = [
@@ -1867,7 +1890,8 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
             sec_ch_ua_mobile: getHeader('Sec-CH-UA-Mobile'),
             sec_ch_ua_platform: getHeader('Sec-CH-UA-Platform'),
             request_id: getHeader('Function-Execution-Id') || randomUUID(),
-            scan_medium: routeType === 'go_redirect' ? 'qr_or_link' : 'nfc_or_qrcode'
+            scan_medium: routeType === 'go_redirect' ? 'qr_or_link' : 'nfc_or_qrcode',
+            ...(visitorId ? { visitor_id: visitorId, visitor_cookie_present: Boolean(cookieVisitorId) } : {})
         };
 
         return {
@@ -1973,6 +1997,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
         const clientPayload = JSON.stringify({
             distinctId: scanContext.distinctId,
             event: 'redirect_scan_page_loaded',
+            visitorId: scanContext.properties.visitor_id || null,
             properties: {
                 route_type: scanContext.properties.route_type,
                 tag_id: scanContext.properties.tag_id,
@@ -2003,10 +2028,12 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
   <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':Date.now(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_CONTAINER_ID}');</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog&&window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split('.');2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement('script')).type='text/javascript',p.crossOrigin='anonymous',p.async=!0,p.src=s.api_host.replace('.i.posthog.com','-assets.i.posthog.com')+'/static/array.js',(r=t.getElementsByTagName('script')[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a='posthog',u.people=u.people||[],u.toString=function(t){var e='posthog';return'posthog'!==a&&(e+='.'+a),t||(e+=' (stub)'),e},u.people.toString=function(){return u.toString(1)+'.people (stub)'},o='init capture identify setPersonProperties reset'.split(' '),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-    posthog.init(${JSON.stringify(POSTHOG_API_KEY)}, { api_host: ${JSON.stringify(POSTHOG_HOST)}, ui_host: ${JSON.stringify(POSTHOG_UI_HOST)}, autocapture: true });
+    posthog.init(${JSON.stringify(POSTHOG_API_KEY)}, { api_host: ${JSON.stringify(POSTHOG_CLIENT_HOST)}, ui_host: ${JSON.stringify(POSTHOG_UI_HOST)}, autocapture: true, person_profiles: 'identified_only' });
     try {
       var payload = ${clientPayload};
       posthog.capture(payload.event, payload.properties);
+      // Liga a pessoa do servidor (id do cookie) ao navegador, que pode já estar identificado.
+      if (payload.visitorId) posthog.alias(payload.visitorId);
     } catch (error) {}
   </script>
   <style>
@@ -2062,10 +2089,24 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
             statusCode: 200
         });
 
-        await Promise.allSettled([
+        const analytics = Promise.allSettled([
             sendGa4Event(tagId || 'auto_redirect', clientSlug || 'fallback', req),
             sendPosthogEvent(scanContext)
         ]);
+
+        if (visitorId) {
+            res.append('Set-Cookie', buildVisitorCookie(visitorId));
+        }
+
+        // Redirect transparente: HTTP 302 direto, sem página nem JavaScript. O envio ao
+        // PostHog corre antes da resposta, com teto de tempo para nunca atrasar o toque.
+        if (isTransparentRedirectEnabled(tagId)) {
+            await withTimeout(analytics, SCAN_ANALYTICS_TIMEOUT_MS);
+            res.set('Cache-Control', 'private, no-store, no-cache, must-revalidate');
+            return res.redirect(302, redirectedUrl);
+        }
+
+        await analytics;
 
         res.status(200).set('Content-Type', 'text/html; charset=utf-8');
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -2234,14 +2275,17 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 const fallbackDoc = await db.doc('site_config/fallback').get();
                 const fallbackUrl = fallbackDoc.exists ? fallbackDoc.data().url : '/';
                 console.info(`Tag ${id} not found or no URL. Redirecting to fallback: ${fallbackUrl}`);
+                // Tag que existe mas não tem URL usável mantém tenant e setor no evento.
+                const fallbackTagData = tagDoc.exists ? tagDoc.data() : {};
                 return respondWithTrackedRedirect({
                     destinationUrl: fallbackUrl,
                     tagId: id || 'unknown',
-                    clientSlug: 'fallback',
+                    clientSlug: tagDoc.exists ? (fallbackTagData.tenant || fallbackTagData.slug || 'fallback') : 'fallback',
                     redirectSource: 'fallback',
                     routeType: 'tag_redirect',
                     fallbackUsed: true,
-                    tagFound: false
+                    tagFound: tagDoc.exists,
+                    tagData: fallbackTagData
                 });
 
             } else {
