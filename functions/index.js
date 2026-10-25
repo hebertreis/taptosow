@@ -29,6 +29,14 @@ const pagbankToken = defineSecret("PAGBANK_TOKEN");
 
 const CoraClient = require('./src/cora');
 const { seedTenants } = require('./src/seedTenants');
+const {
+    parseVisitorId,
+    newVisitorId,
+    buildVisitorCookie,
+    isVisitorIdEnabled,
+    isTransparentRedirectEnabled,
+    withTimeout,
+} = require('./src/scanRedirect');
 
 const PIX_WEBHOOK_PROXY_PREFIX = '/api/webhook-pix/';
 const PIX_WEBHOOK_PROXY_TARGET_ORIGIN = 'https://giving.onetapgo.site';
@@ -37,6 +45,10 @@ const PIX_WEBHOOK_REDIS_CHANNEL = 'webhook-pix-events';
 const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY || process.env.POSTHOG_PROJECT_API_KEY || 'phc_Cmw1QqdkzzdWkgRuqRNze8vCGmnVnISDjazikU4x1In';
 const POSTHOG_HOST = process.env.POSTHOG_HOST || 'https://us.i.posthog.com';
 const POSTHOG_UI_HOST = process.env.POSTHOG_UI_HOST || 'https://us.posthog.com';
+// Host do PostHog usado NO NAVEGADOR (página intermediária): o proxy próprio evita bloqueio por adblock.
+const POSTHOG_CLIENT_HOST = process.env.POSTHOG_CLIENT_HOST || 'https://p.onetapgo.site';
+// Teto de espera do envio de analytics no redirect transparente: o toque nunca espera mais que isso.
+const SCAN_ANALYTICS_TIMEOUT_MS = 800;
 const GTM_CONTAINER_ID = 'GTM-WSML9VGB';
 
 const HOP_BY_HOP_HEADERS = new Set([
@@ -338,6 +350,7 @@ function serializeTag(doc) {
     tenant: data.tenant || null,
     slug: data.slug || null,
     client_slug: data.client_slug || null,
+    sector: data.sector || null,
     status: data.status || null,
     redirect_url: data.redirect_url || null,
     redirect_override: data.redirect_override || null,
@@ -1740,6 +1753,11 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
         return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
     };
 
+    // Id do visitante (cookie __session). Desligado por padrão (SCAN_VISITOR_ID=true liga).
+    const visitorIdEnabled = isVisitorIdEnabled();
+    const cookieVisitorId = visitorIdEnabled ? parseVisitorId(req.headers.cookie) : null;
+    const visitorId = visitorIdEnabled ? (cookieVisitorId || newVisitorId()) : null;
+
     const escapeHtml = (value) => String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
@@ -1794,6 +1812,12 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
 
         if (explicitId) {
             return explicitId;
+        }
+
+        // Id estável do navegador (cookie): scans repetidos e o alias feito pelos produtos
+        // passam a cair na MESMA pessoa do PostHog, em vez de um hash por scan.
+        if (visitorId) {
+            return visitorId;
         }
 
         const fingerprintSource = [
@@ -1866,7 +1890,8 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
             sec_ch_ua_mobile: getHeader('Sec-CH-UA-Mobile'),
             sec_ch_ua_platform: getHeader('Sec-CH-UA-Platform'),
             request_id: getHeader('Function-Execution-Id') || randomUUID(),
-            scan_medium: routeType === 'go_redirect' ? 'qr_or_link' : 'nfc_or_qrcode'
+            scan_medium: routeType === 'go_redirect' ? 'qr_or_link' : 'nfc_or_qrcode',
+            ...(visitorId ? { visitor_id: visitorId, visitor_cookie_present: Boolean(cookieVisitorId) } : {})
         };
 
         return {
@@ -1972,6 +1997,7 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
         const clientPayload = JSON.stringify({
             distinctId: scanContext.distinctId,
             event: 'redirect_scan_page_loaded',
+            visitorId: scanContext.properties.visitor_id || null,
             properties: {
                 route_type: scanContext.properties.route_type,
                 tag_id: scanContext.properties.tag_id,
@@ -2002,10 +2028,12 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
   <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':Date.now(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_CONTAINER_ID}');</script>
   <script>
     !function(t,e){var o,n,p,r;e.__SV||(window.posthog&&window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split('.');2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement('script')).type='text/javascript',p.crossOrigin='anonymous',p.async=!0,p.src=s.api_host.replace('.i.posthog.com','-assets.i.posthog.com')+'/static/array.js',(r=t.getElementsByTagName('script')[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a='posthog',u.people=u.people||[],u.toString=function(t){var e='posthog';return'posthog'!==a&&(e+='.'+a),t||(e+=' (stub)'),e},u.people.toString=function(){return u.toString(1)+'.people (stub)'},o='init capture identify setPersonProperties reset'.split(' '),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
-    posthog.init(${JSON.stringify(POSTHOG_API_KEY)}, { api_host: ${JSON.stringify(POSTHOG_HOST)}, ui_host: ${JSON.stringify(POSTHOG_UI_HOST)}, autocapture: true });
+    posthog.init(${JSON.stringify(POSTHOG_API_KEY)}, { api_host: ${JSON.stringify(POSTHOG_CLIENT_HOST)}, ui_host: ${JSON.stringify(POSTHOG_UI_HOST)}, autocapture: true, person_profiles: 'identified_only' });
     try {
       var payload = ${clientPayload};
       posthog.capture(payload.event, payload.properties);
+      // Liga a pessoa do servidor (id do cookie) ao navegador, que pode já estar identificado.
+      if (payload.visitorId) posthog.alias(payload.visitorId);
     } catch (error) {}
   </script>
   <style>
@@ -2061,10 +2089,24 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
             statusCode: 200
         });
 
-        await Promise.allSettled([
+        const analytics = Promise.allSettled([
             sendGa4Event(tagId || 'auto_redirect', clientSlug || 'fallback', req),
             sendPosthogEvent(scanContext)
         ]);
+
+        if (visitorId) {
+            res.append('Set-Cookie', buildVisitorCookie(visitorId));
+        }
+
+        // Redirect transparente: HTTP 302 direto, sem página nem JavaScript. O envio ao
+        // PostHog corre antes da resposta, com teto de tempo para nunca atrasar o toque.
+        if (isTransparentRedirectEnabled(tagId)) {
+            await withTimeout(analytics, SCAN_ANALYTICS_TIMEOUT_MS);
+            res.set('Cache-Control', 'private, no-store, no-cache, must-revalidate');
+            return res.redirect(302, redirectedUrl);
+        }
+
+        await analytics;
 
         res.status(200).set('Content-Type', 'text/html; charset=utf-8');
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
@@ -2135,17 +2177,72 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                         updated_at: admin.firestore.FieldValue.serverTimestamp()
                     });
 
+                    // Fire-and-forget scan webhook notification
+                    const scanWebhookUrl = process.env.TAG_SCAN_WEBHOOK_URL;
+                    if (scanWebhookUrl) {
+                      void fetch(scanWebhookUrl, {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'x-onetapgo-event': 'tag.scan',
+                          ...(process.env.TAG_SCAN_WEBHOOK_SECRET
+                            ? { 'x-onetapgo-signature': process.env.TAG_SCAN_WEBHOOK_SECRET }
+                            : {}),
+                        },
+                        body: JSON.stringify({
+                          event: 'tag.scan',
+                          tagId: id,
+                          tenant: tagData.tenant || tagData.slug || 'unknown',
+                          sector: tagData.sector || null,
+                          scanCount: (typeof tagData.scan_count === 'number' ? tagData.scan_count : 0) + 1,
+                          scannedAt: new Date().toISOString(),
+                        }),
+                        signal: AbortSignal.timeout(4000),
+                      }).catch(() => null);
+                    }
+
                     const clientSlug = tagData.tenant || tagData.slug || "fallback";
+                    const overrideUrl = typeof tagData.redirect_override === 'string'
+                        ? tagData.redirect_override.trim()
+                        : '';
+                    if (overrideUrl) {
+                        return respondWithTrackedRedirect({
+                            destinationUrl: overrideUrl,
+                            tagId: id,
+                            clientSlug,
+                            redirectSource: 'tag_redirect_override',
+                            routeType: 'tag_redirect',
+                            tagFound: true,
+                            tagData
+                        });
+                    }
+
+                    const sector = tagData.sector;
+                    if (sector && clientSlug && clientSlug !== "fallback") {
+                        const sectorDoc = await db.collection('tenants').doc(clientSlug).collection('sectors').doc(sector).get();
+                        const sectorUrl = sectorDoc.exists ? sectorDoc.data()?.redirect_url : null;
+                        if (typeof sectorUrl === 'string' && sectorUrl.trim().length > 0) {
+                            console.info(`Redirecting tag ${id} to sector URL: ${sectorUrl} (tenant=${clientSlug}, sector=${sector})`);
+                            return respondWithTrackedRedirect({
+                                destinationUrl: sectorUrl,
+                                tagId: id,
+                                clientSlug,
+                                redirectSource: 'sector_redirect_url',
+                                routeType: 'tag_redirect',
+                                tagFound: true,
+                                tagData
+                            });
+                        }
+                    }
+
                     const targetUrl = [
                         tagData.redirect_url,
-                        tagData.redirect_override,
                         tagData.target_url,
                         tagData.url,
                         tagData.redirectUrl
                     ].find((value) => typeof value === 'string' && value.trim().length > 0);
 
                     if (targetUrl) {
-                        console.info(`Redirecting tag ${id} to URL: ${targetUrl} with clientSlug: ${clientSlug}`);
                         return respondWithTrackedRedirect({
                             destinationUrl: targetUrl,
                             tagId: id,
@@ -2178,14 +2275,17 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                 const fallbackDoc = await db.doc('site_config/fallback').get();
                 const fallbackUrl = fallbackDoc.exists ? fallbackDoc.data().url : '/';
                 console.info(`Tag ${id} not found or no URL. Redirecting to fallback: ${fallbackUrl}`);
+                // Tag que existe mas não tem URL usável mantém tenant e setor no evento.
+                const fallbackTagData = tagDoc.exists ? tagDoc.data() : {};
                 return respondWithTrackedRedirect({
                     destinationUrl: fallbackUrl,
                     tagId: id || 'unknown',
-                    clientSlug: 'fallback',
+                    clientSlug: tagDoc.exists ? (fallbackTagData.tenant || fallbackTagData.slug || 'fallback') : 'fallback',
                     redirectSource: 'fallback',
                     routeType: 'tag_redirect',
                     fallbackUsed: true,
-                    tagFound: false
+                    tagFound: tagDoc.exists,
+                    tagData: fallbackTagData
                 });
 
             } else {
@@ -2231,12 +2331,25 @@ exports.iotRouter = onRequest({ cors: true, maxInstances: 5, memory: "256MiB" },
                     updated_at: admin.firestore.FieldValue.serverTimestamp()
                 });
                 const clientDoc = await db.collection('clients').doc(slug).get();
-                target_url = tagData.redirect_override || clientDoc.data()?.base_url || '/';
+                let target_url = tagData.redirect_override;
+
+                if (!target_url && tagData.sector) {
+                    const sectorDoc = await db.collection('tenants').doc(slug).collection('sectors').doc(tagData.sector).get();
+                    const sectorUrl = sectorDoc.exists ? sectorDoc.data()?.redirect_url : null;
+                    if (sectorUrl) {
+                        target_url = sectorUrl;
+                    }
+                }
+
+                target_url = target_url || clientDoc.data()?.base_url || '/';
+                const redirectSource = tagData.redirect_override
+                    ? 'tag_redirect_override'
+                    : (target_url !== (clientDoc.data()?.base_url || '/') && target_url !== '/' ? 'sector_redirect_url' : 'client_base_url');
                 return respondWithTrackedRedirect({
                     destinationUrl: target_url,
                     tagId: uid,
                     clientSlug: slug,
-                    redirectSource: tagData.redirect_override ? 'tag_redirect_override' : 'client_base_url',
+                    redirectSource,
                     routeType: 'go_redirect',
                     tagFound: true,
                     tagData
@@ -2526,6 +2639,29 @@ async function updateTenantTagsInChunks({ db, tagDocs, payloadFactory }) {
   return updatedCount;
 }
 
+function buildTagRequestMetadata(req) {
+  return {
+    ipAddress: req.ip || null,
+    userAgent: req.get('user-agent') || null,
+    origin: req.get('origin') || null,
+    referer: req.get('referer') || null,
+    method: req.method,
+    path: req.path,
+  };
+}
+
+function tagBelongsToTenant(tagData = {}, tenant) {
+  const tenantAliases = [
+    tagData.tenant,
+    tagData.tenantId,
+    tagData.slug,
+    tagData.client_slug,
+    tagData.clientSlug,
+  ];
+
+  return tenantAliases.some((value) => sanitizeTenantLookup(value) === tenant);
+}
+
 function getTagUrlUpdateField(rawField) {
   const targetField = sanitizeAuditField(rawField || 'redirect_url') || 'redirect_url';
   const allowedFields = new Set(['redirect_url', 'redirect_override', 'target_url', 'url', 'redirecturl']);
@@ -2699,6 +2835,8 @@ exports.updateTagUrlByIds = onRequest(
 
     const db = admin.firestore();
     const ids = req.body?.ids;
+    const clearValue = req.body?.clear === true;
+    const tenant = sanitizeTenantLookup(req.body?.tenant || req.query?.tenant);
     const newUrl = normalizeTenantTagUrl(
       req.body?.newUrl || req.body?.url || req.body?.redirectUrl || req.query?.newUrl || req.query?.url
     );
@@ -2708,16 +2846,20 @@ exports.updateTagUrlByIds = onRequest(
       return res.status(400).json({ error: 'ids must be a non-empty array' });
     }
 
-    if (!newUrl) {
+    if (!clearValue && !newUrl) {
       return res.status(400).json({ error: 'newUrl is required' });
     }
 
-    if (!isValidHttpUrl(newUrl)) {
+    if (!clearValue && !isValidHttpUrl(newUrl)) {
       return res.status(400).json({ error: 'newUrl must be a valid http or https URL' });
     }
 
     if (!normalizedTargetField) {
       return res.status(400).json({ error: 'field must be one of: redirect_url, redirect_override, target_url, url, redirectUrl' });
+    }
+
+    if (clearValue && normalizedTargetField !== 'redirect_override') {
+      return res.status(400).json({ error: 'Only redirect_override can be cleared' });
     }
 
     const auditRef = db.collection('tag_url_audits').doc();
@@ -2731,7 +2873,15 @@ exports.updateTagUrlByIds = onRequest(
     };
 
     try {
-      const { foundDocs, missingIds, requestedIds } = await fetchTagsByIds(db, ids);
+      const fetched = await fetchTagsByIds(db, ids);
+      const requestedIds = fetched.requestedIds;
+      const foundDocs = tenant
+        ? fetched.foundDocs.filter((tagDoc) => tagBelongsToTenant(tagDoc.data(), tenant))
+        : fetched.foundDocs;
+      const foreignIds = tenant
+        ? fetched.foundDocs.filter((tagDoc) => !tagBelongsToTenant(tagDoc.data(), tenant)).map((tagDoc) => tagDoc.id)
+        : [];
+      const missingIds = [...new Set([...fetched.missingIds, ...foreignIds])];
 
       if (foundDocs.length === 0) {
         await auditRef.set({
@@ -2766,7 +2916,7 @@ exports.updateTagUrlByIds = onRequest(
         db,
         tagDocs: foundDocs,
         payloadFactory: () => ({
-          [normalizedTargetField]: newUrl,
+          [normalizedTargetField]: clearValue ? admin.firestore.FieldValue.delete() : newUrl,
           updated_at: admin.firestore.FieldValue.serverTimestamp(),
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         }),
@@ -2806,6 +2956,206 @@ exports.updateTagUrlByIds = onRequest(
         requestedIds: Array.isArray(ids) ? ids : [],
         newUrl,
         targetField: normalizedTargetField,
+        error: error.message || 'Unknown error',
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return res.status(500).json({
+        success: false,
+        error: 'Internal Server Error',
+        auditId: auditRef.id,
+      });
+    }
+  }
+);
+
+exports.removeTagSector = onRequest(
+  { cors: true, maxInstances: 2 },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') return res.status(204).send('');
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const tenant = sanitizeTenantLookup(req.body?.tenant);
+    const ids = req.body?.ids;
+    if (!tenant) return res.status(400).json({ error: 'tenant is required' });
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids must be a non-empty array' });
+    }
+
+    const db = admin.firestore();
+    const auditRef = db.collection('tag_url_audits').doc();
+    try {
+      const { foundDocs, missingIds, requestedIds } = await fetchTagsByIds(db, ids);
+      const matched = foundDocs.filter((doc) => tagBelongsToTenant(doc.data(), tenant));
+      const foreignIds = foundDocs.filter((doc) => !tagBelongsToTenant(doc.data(), tenant)).map((doc) => doc.id);
+      const allMissingIds = [...new Set([...missingIds, ...foreignIds])];
+      if (matched.length === 0) {
+        return res.status(404).json({ success: false, error: 'No tags found for the provided ids and tenant', missingIds: allMissingIds });
+      }
+      const updatedTags = await updateTenantTagsInChunks({
+        db,
+        tagDocs: matched,
+        payloadFactory: () => ({
+          sector: admin.firestore.FieldValue.delete(),
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }),
+      });
+      await auditRef.set({
+        action: 'remove_tag_sector', status: 'success', tenant, requestedIds,
+        missingIds: allMissingIds, matchedTags: matched.length, updatedTags,
+        requestMetadata: buildTagRequestMetadata(req),
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      return res.status(200).json({ success: true, tenant, missingIds: allMissingIds, matchedTags: matched.length, updatedTags, auditId: auditRef.id });
+    } catch (error) {
+      logger.error('Error removing tag sector:', error);
+      return res.status(500).json({ success: false, error: 'Internal Server Error', auditId: auditRef.id });
+    }
+  }
+);
+
+exports.assignTagSector = onRequest(
+  {
+    cors: true,
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const db = admin.firestore();
+    const tenant = sanitizeTenantLookup(
+      req.body?.tenant ||
+      req.body?.tenantId ||
+      req.body?.slug ||
+      req.body?.client_slug ||
+      req.body?.clientSlug
+    );
+    const ids = req.body?.ids;
+    const sector = sanitizeSectorId(req.body?.sector || req.body?.setor);
+    const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : null;
+
+    if (!tenant) {
+      return res.status(400).json({ error: 'tenant is required' });
+    }
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'ids must be a non-empty array' });
+    }
+
+    if (!sector) {
+      return res.status(400).json({ error: 'sector is required' });
+    }
+
+    const auditRef = db.collection('tag_url_audits').doc();
+    const requestMetadata = buildTagRequestMetadata(req);
+
+    try {
+      const { foundDocs, missingIds, requestedIds } = await fetchTagsByIds(db, ids);
+      const tenantMatchedDocs = foundDocs.filter((tagDoc) => tagBelongsToTenant(tagDoc.data(), tenant));
+      const tenantUnmatchedIds = foundDocs
+        .filter((tagDoc) => !tagBelongsToTenant(tagDoc.data(), tenant))
+        .map((tagDoc) => tagDoc.id);
+      const allMissingIds = [...new Set([...missingIds, ...tenantUnmatchedIds])];
+
+      if (tenantMatchedDocs.length === 0) {
+        await auditRef.set({
+          action: 'assign_tag_sector',
+          status: 'no_tags_found',
+          tenant,
+          sector,
+          requestedIds,
+          missingIds: allMissingIds,
+          matchedTags: 0,
+          updatedTags: 0,
+          requestMetadata,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return res.status(404).json({
+          success: false,
+          error: 'No tags found for the provided ids and tenant',
+          tenant,
+          sector,
+          ids: requestedIds,
+          missingIds: allMissingIds,
+          auditId: auditRef.id,
+        });
+      }
+
+      const updatedCount = await updateTenantTagsInChunks({
+        db,
+        tagDocs: tenantMatchedDocs,
+        payloadFactory: () => ({
+          sector,
+          updated_at: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }),
+      });
+
+      const sectorRef = db.collection('tenants').doc(tenant).collection('sectors').doc(sector);
+      const sectorSnapshot = await sectorRef.get();
+      const sectorPayload = {
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      if (name) {
+        sectorPayload.name = name;
+      } else if (!sectorSnapshot.exists) {
+        sectorPayload.name = sector;
+      }
+
+      if (!sectorSnapshot.exists) {
+        sectorPayload.createdAt = admin.firestore.FieldValue.serverTimestamp();
+      }
+
+      await sectorRef.set(sectorPayload, { merge: true });
+
+      await auditRef.set({
+        action: 'assign_tag_sector',
+        status: 'success',
+        tenant,
+        sector,
+        requestedIds,
+        missingIds: allMissingIds,
+        matchedTags: tenantMatchedDocs.length,
+        updatedTags: updatedCount,
+        sampleTagIds: tenantMatchedDocs.slice(0, 100).map((tagDoc) => tagDoc.id),
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return res.status(200).json({
+        success: true,
+        tenant,
+        sector,
+        ids: requestedIds,
+        missingIds: allMissingIds,
+        matchedTags: tenantMatchedDocs.length,
+        updatedTags: updatedCount,
+        auditId: auditRef.id,
+      });
+    } catch (error) {
+      logger.error('Error assigning tag sector:', error);
+
+      await auditRef.set({
+        action: 'assign_tag_sector',
+        status: 'error',
+        tenant,
+        sector,
+        requestedIds: Array.isArray(ids) ? ids : [],
         error: error.message || 'Unknown error',
         requestMetadata,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -2981,5 +3331,205 @@ exports.listTags = onRequest(
     }
 
     return listTags(req, res);
+  }
+);
+
+// List sectors for a tenant. Reads tenants/<slug>/sectors subcollection
+// and enriches with live tag counts from the tags collection.
+exports.listTagSectors = onRequest(
+  {
+    cors: true,
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'GET') {
+      res.set('Allow', 'GET, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const tenant = sanitizeTenantLookup(
+      req.query.tenant || req.query.slug || req.query.client_slug
+    );
+
+    if (!tenant) {
+      return res.status(400).json({ success: false, error: 'tenant is required' });
+    }
+
+    try {
+      const db = admin.firestore();
+
+      const [sectorsSnapshot, tagsSnapshot] = await Promise.all([
+        db.collection('tenants').doc(tenant).collection('sectors').get(),
+        db.collection('tags').where('tenant', '==', tenant).get(),
+      ]);
+
+      // Build sector tag count index
+      const sectorTagCount = {};
+      tagsSnapshot.docs.forEach((doc) => {
+        const sector = doc.data().sector;
+        if (sector) {
+          sectorTagCount[sector] = (sectorTagCount[sector] || 0) + 1;
+        }
+      });
+
+      const sectors = sectorsSnapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          internal: doc.id,
+          name: data.name || doc.id,
+          redirect_url: data.redirect_url || null,
+          redirectUrl: data.redirect_url || null,
+          active_destination_url: data.redirect_url || null,
+          active_redirect_source: data.redirect_url ? 'sector_redirect_url' : null,
+          active_schedule_id: data.active_schedule_id || null,
+          active: data.active !== false,
+          schedules: Array.isArray(data.schedules) ? data.schedules : [],
+          tag_count: sectorTagCount[doc.id] !== undefined ? sectorTagCount[doc.id] : (data.tag_count || 0),
+          tagCount: sectorTagCount[doc.id] !== undefined ? sectorTagCount[doc.id] : (data.tag_count || 0),
+          created_at: parseFirestoreTimestamp(data.createdAt || data.created_at),
+          updated_at: parseFirestoreTimestamp(data.updatedAt || data.updated_at),
+        };
+      });
+
+      return res.status(200).json({
+        success: true,
+        tenant,
+        count: sectors.length,
+        sectors,
+      });
+    } catch (error) {
+      logger.error('Error listing tag sectors:', error);
+      return res.status(500).json({ success: false, error: 'Internal Server Error' });
+    }
+  }
+);
+
+// Update redirect URL for a sector document only.
+// Tags resolve the sector URL at scan time via iotRouter.
+exports.updateSectorUrl = onRequest(
+  {
+    cors: true,
+    maxInstances: 2,
+  },
+  async (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.set('Allow', 'POST, OPTIONS');
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const db = admin.firestore();
+    const tenant = sanitizeTenantLookup(req.body?.tenant || req.body?.slug);
+    const sector = sanitizeSectorId(req.body?.sector || req.body?.setor);
+    const name = typeof req.body?.name === 'string' && req.body.name.trim() ? req.body.name.trim() : null;
+    const newUrl = normalizeTenantTagUrl(req.body?.newUrl || req.body?.url || req.body?.redirectUrl || '');
+
+    if (!tenant) return res.status(400).json({ error: 'tenant is required' });
+    if (!sector) return res.status(400).json({ error: 'sector is required' });
+    if (!newUrl) return res.status(400).json({ error: 'newUrl is required' });
+    if (!isValidHttpUrl(newUrl)) return res.status(400).json({ error: 'newUrl must be a valid http or https URL' });
+
+    const auditRef = db.collection('tag_url_audits').doc();
+    const requestMetadata = buildTagRequestMetadata(req);
+
+    try {
+      const sectorRef = db.collection('tenants').doc(tenant).collection('sectors').doc(sector);
+      const sectorPayload = {
+        redirect_url: newUrl,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      if (name) sectorPayload.name = name;
+
+      const sectorDoc = await sectorRef.get();
+      if (!sectorDoc.exists) {
+        sectorPayload.createdAt = admin.firestore.FieldValue.serverTimestamp();
+        sectorPayload.name = sectorPayload.name || sector;
+      }
+
+      await sectorRef.set(sectorPayload, { merge: true });
+
+      await auditRef.set({
+        action: 'update_sector_url',
+        status: 'success',
+        tenant,
+        sector,
+        newUrl,
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return res.status(200).json({
+        success: true,
+        tenant,
+        sector,
+        newUrl,
+        auditId: auditRef.id,
+      });
+    } catch (error) {
+      logger.error('Error updating sector URL:', error);
+      await auditRef.set({
+        action: 'update_sector_url',
+        status: 'error',
+        tenant,
+        sector,
+        newUrl,
+        error: error.message || 'Unknown error',
+        requestMetadata,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      return res.status(500).json({ success: false, error: 'Internal Server Error', auditId: auditRef.id });
+    }
+  }
+);
+
+// Webhook: notify external systems when a tag is scanned.
+// Called internally by iotRouter; also exposed as HTTP for testing.
+exports.notifyScanWebhook = onRequest(
+  {
+    cors: false,
+    maxInstances: 5,
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
+    const webhookUrl = process.env.TAG_SCAN_WEBHOOK_URL;
+    if (!webhookUrl) {
+      return res.status(200).json({ skipped: true, reason: 'TAG_SCAN_WEBHOOK_URL not configured' });
+    }
+
+    try {
+      const payload = req.body;
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-onetapgo-event': 'tag.scan',
+          ...(process.env.TAG_SCAN_WEBHOOK_SECRET
+            ? { 'x-onetapgo-signature': process.env.TAG_SCAN_WEBHOOK_SECRET }
+            : {}),
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(5000),
+      });
+
+      return res.status(200).json({ success: true, status: response.status });
+    } catch (error) {
+      logger.error('notifyScanWebhook failed:', error.message);
+      return res.status(200).json({ success: false, error: error.message });
+    }
   }
 );

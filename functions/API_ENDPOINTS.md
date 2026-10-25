@@ -289,7 +289,7 @@ Body:
 ```
 
 Campos relevantes:
-- `tenant`: obrigatorio. Tambem aceita `slug`
+- `tenant`: obrigatorio
 - `newUrl`: obrigatorio. Tambem aceita `url` ou `redirectUrl`
 - `field`: opcional. Aceita `redirect_url`, `redirect_override`, `target_url`, `url` ou `redirectUrl`. Default `redirect_url`
 
@@ -315,7 +315,7 @@ Status:
 - `500` erro interno
 
 Observacoes:
-- a busca considera tags com tenant salvo em `tenant`, `slug` ou `client_slug`
+- a busca considera tags pelo campo `tenant`
 - o endpoint grava auditoria com tenant, URL nova, campo alterado, contagem e amostras das tags afetadas
 - atualiza tambem `updated_at` e `updatedAt` nas tags alteradas
 
@@ -385,7 +385,8 @@ Metodos:
 - `OPTIONS`
 
 Query params:
-- um entre `tenant`, `slug` ou `client_slug` e obrigatorio
+- `tenant` e obrigatorio
+- `sector`: opcional para filtrar tags com esse setor
 - `limit`: opcional, default `200`, max `500`; acima disso retorna `400`
 - `cursor`: opcional, cursor opaco da pagina anterior
 
@@ -403,9 +404,7 @@ Resposta de sucesso:
   "tags": [
     {
       "id": "abc123",
-      "tenant": "igreja-exemplo",
-      "slug": "igreja-exemplo",
-      "client_slug": "igreja-exemplo"
+      "tenant": "igreja-exemplo"
     }
   ],
   "pagination": {
@@ -422,10 +421,65 @@ Status:
 - `500` erro interno
 
 Observacoes:
-- se mais de um filtro for enviado, vale a precedencia `tenant` > `slug` > `client_slug`
+- a listagem filtra exclusivamente pelo campo `tenant`
+- quando `sector` e enviado, a listagem tambem filtra pelo campo `sector`
 - a ordenacao e por `doc.id` ascendente
 - `nextCursor` so vem quando existir proxima pagina
 - a query usa os indices simples padrao do Firestore; nao exige indice composto novo para `tags`
+
+Documentacao detalhada:
+- [TAGS_API.md](/Users/hebertreis/taptosow/functions/TAGS_API.md)
+
+### `GET|POST /api/tag-sectors`
+
+Function: `manageTagSectorRedirect`
+
+Objetivo:
+- listar e atualizar destinos de tags por setor
+- permitir que tags com `sector` sigam a URL configurada em `tenants/{tenant}/sectors/{sector}`
+- permitir agendas semanais e de data especifica por setor
+
+Metodos:
+- `GET`
+- `POST`
+- `OPTIONS`
+
+Query params para `GET`:
+- `tenant`: obrigatorio
+- `sector`: opcional; quando enviado, retorna apenas um setor
+
+Body para `POST`:
+
+```json
+{
+  "tenant": "rampchurchsp",
+  "sector": "auditorio",
+  "newUrl": "https://example.com/visitantes",
+  "schedules": [
+    {
+      "id": "domingo_visitantes_0900",
+      "daysOfWeek": [0],
+      "startTime": "09:00",
+      "url": "https://example.com/visitantes"
+    },
+    {
+      "id": "domingo_oferta_1000",
+      "daysOfWeek": [0],
+      "startTime": "10:00",
+      "url": "https://give.onetapgo.site/rampchurchsp"
+    }
+  ]
+}
+```
+
+Prioridade da agenda:
+- data especifica (`date: "YYYY-MM-DD"`)
+- semanal (`daysOfWeek`)
+- URL fixa do setor (`newUrl` / `redirect_url`)
+- URL direta da tag
+
+Alias:
+- `POST /api/tag-sectors/update-url` aponta para a mesma Function
 
 Documentacao detalhada:
 - [TAGS_API.md](/Users/hebertreis/taptosow/functions/TAGS_API.md)
@@ -442,7 +496,7 @@ Metodos:
 - `OPTIONS`
 
 Query params:
-- um entre `tenant`, `slug` ou `client_slug` e obrigatorio
+- `tenant` e obrigatorio
 
 Resposta de sucesso:
 
@@ -465,6 +519,7 @@ Resposta de sucesso:
     "average_scans_per_tag": 12.42,
     "latest_scan_at": "2026-03-28T17:10:00.000Z",
     "latest_updated_at": "2026-03-28T17:11:00.000Z",
+    "ignored_tags_count": 1,
     "active_urls": [
       {
         "url": "https://example.com",
@@ -490,10 +545,65 @@ Status:
 - `500` erro interno
 
 Observacoes:
-- se mais de um filtro for enviado, vale a precedencia `tenant` > `slug` > `client_slug`
+- os KPIs filtram exclusivamente pelo campo `tenant`
 - `inactive_tags` agrega qualquer status diferente de `active`, inclusive `unknown`
 - `tags_with_redirect` considera `redirect_url`, `redirect_override`, `target_url`, `url` e `redirectUrl`
 - `active_urls` lista as URLs atualmente configuradas nas tags e a quantidade de ocorrencias
+- tags listadas em `site_config/reporting_settings.ignoredTagIds` ficam fora dos KPIs e nao enviam eventos de redirect para o PostHog
+
+### `GET|POST /api/tags/reporting-settings`
+
+Function: `manageReportingIgnoredTags`
+
+Objetivo:
+- gerenciar as tags ignoradas em relatorios
+
+Metodos:
+- `GET`
+- `POST`
+- `OPTIONS`
+
+#### `GET` consultar configuracao
+
+Resposta de sucesso:
+
+```json
+{
+  "success": true,
+  "reporting": {
+    "ignoredTagIds": ["159f7cc7", "194def19"],
+    "ignoredTagsCount": 2,
+    "firestoreDocumentPath": "site_config/reporting_settings"
+  }
+}
+```
+
+#### `POST` atualizar configuracao
+
+Body:
+
+```json
+{
+  "mode": "add",
+  "ignoredTagIds": ["159f7cc7", "194def19"]
+}
+```
+
+Campos:
+- `mode`: opcional. Aceita `replace`, `add` ou `remove`
+- `ignoredTagIds`: obrigatorio. Array com IDs de tags
+
+Status:
+- `200` sucesso
+- `400` body invalido
+- `405` metodo nao permitido
+- `500` erro interno
+
+Observacoes:
+- a configuracao e salva em `site_config/reporting_settings`
+- `replace` substitui a lista atual
+- `add` adiciona IDs mantendo as existentes
+- `remove` remove IDs da lista atual
 
 ### `GET /api/seed`
 
@@ -718,32 +828,48 @@ Documentacao detalhada:
 ### `GET /a`
 
 Rewrite configurado para:
-- `redirectAuto`
+- `tagRedirectBr`
 
-Estado atual:
-- nao existe `exports.redirectAuto` em [functions/index.js](/Users/hebertreis/taptosow/functions/index.js)
+Objetivo:
+- redirecionamento automatico da rota raiz `/a`
 
-Impacto:
-- a documentacao desta rota fica inconsistente com o codigo atual
-- a logica equivalente parece ter sido absorvida por `iotRouter`
+Comportamento:
+- executa na regiao `southamerica-east1`
+- le `site_config/auto_redirect`
+- responde com `302`
+- com `?debug=1`, devolve tempos no header `Server-Timing` e `X-OneTapGo-Debug-Timings`
+
+Status:
+- `302` redirect
+- `500` erro interno
 
 ### `GET /a/{id}`
 
 Rewrite:
-- `/a/**` -> `iotRouter`
+- `/a/**` -> `tagRedirectBr`
 
 Objetivo:
 - redireciona por tag
 
 Comportamento:
-- busca `tags/{id}`
-- incrementa contadores de scan
-- tenta `redirect_url`, `redirect_override`, `target_url`, `url` ou `redirectUrl`
-- se nao encontrar, usa fallback em `site_config/fallback`
-- responde com HTML intersticial que redireciona em seguida
+- executa na regiao `southamerica-east1`
+- tenta ler primeiro o cache Redis por `tag_redirect:{id}`
+- em cache miss, busca `tags/{id}` no Firestore e repopula o Redis
+- trigger `syncTagRedirectCacheOnWrite` sincroniza Redis a cada alteracao em `tags/{id}`
+- job `syncAllTagRedirectCaches` recompõe o cache inteiro a cada 12 horas
+- enfileira o scan no Redis com contador pendente e timestamp real do ultimo scan
+- job `flushTagScanMetrics` faz flush dessas metricas no Firestore a cada minuto
+- envia evento `redirect_scan` para PostHog em background, sem bloquear o redirect
+- se a tag tiver `sector`, consulta `tenants/{tenant}/sectors/{sector}` e usa a URL ativa do setor
+- em setor, agenda de data especifica tem prioridade sobre agenda semanal; depois entra URL fixa do setor
+- se nao houver URL valida no setor, tenta a URL direta da tag: `redirect_url`, `redirect_override`, `target_url`, `url` ou `redirectUrl`
+- se nao encontrar URL na tag, tenta `clients/{slug}.base_url`
+- se ainda nao encontrar, usa fallback em `site_config/fallback`
+- responde com `302`
+- com `?debug=1`, devolve tempos por etapa no header `Server-Timing` e `X-OneTapGo-Debug-Timings`
 
 Status:
-- `200` HTML de redirecionamento
+- `302` redirect
 - `500` erro interno
 
 ### `GET /go/{slug}/{uid}`
@@ -848,14 +974,16 @@ Para integrações externas, as rotas hoje mais relevantes sao:
 - `POST /api/tenants`
 - `POST /api/tenant-tags/update-url`
 - `POST /api/tags/update-by-ids`
+- `GET|POST /api/tag-sectors`
+- `POST /api/tag-sectors/update-url`
 - `GET /api/tags`
 - `GET /api/tags/kpis`
+- `GET|POST /api/tags/reporting-settings`
 - `POST /createPaymentIntent`
 - `POST /createCoraPixCharge`
 - `POST /checkCoraPixStatus`
 
 ## Pendencias encontradas
 
-- o rewrite `/a` aponta para `redirectAuto`, mas essa export nao existe no arquivo principal atual
 - `logEvent`, `verifyApplePayDomain` e `seedTenantsFunction` existem como functions, mas nao possuem rewrite publico em [firebase.json](/Users/hebertreis/taptosow/firebase.json)
 - endpoints administrativos sensiveis estao sem autenticacao explicita

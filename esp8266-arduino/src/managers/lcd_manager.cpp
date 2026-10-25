@@ -140,6 +140,7 @@ bool LcdManager::begin() {
     g_display.print(F("v"));
     g_display.print(DEVICE_VERSION);
     g_display.display();
+    releaseBus();
 
     _initialized = true;
     _lastUpdate = millis();
@@ -206,6 +207,7 @@ void LcdManager::showState() {
     }
 
     g_display.display();
+    releaseBus();
 
     _lastUpdate = now;
     _lastState = currentState;
@@ -255,6 +257,7 @@ void LcdManager::showQrCode(const char* ssid, const char* password) {
     g_display.print(F("Acesse 192.168.4.1"));
 
     g_display.display();
+    releaseBus();
 }
 
 void LcdManager::showAdminOverlay(unsigned long duration) {
@@ -273,6 +276,14 @@ void LcdManager::showTechnicalOverlay(unsigned long duration) {
 
 bool LcdManager::canUpdate() {
     return lcdCanUpdate();
+}
+
+void LcdManager::releaseBus() {
+#if LCD_ENABLED
+    pinMode(OLED_SDA_PIN, INPUT);
+    pinMode(OLED_SCL_PIN, INPUT);
+    delay(LCD_TO_SPI_DELAY_MS);
+#endif
 }
 
 void LcdManager::_renderBootScreen() {
